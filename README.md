@@ -5,62 +5,46 @@ datatree
 [![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/datatree/blob/master/package.json)
 
 <!-- toc -->
+* [Debugging your plugin](#debugging-your-plugin)
 <!-- tocstop -->
 <!-- install -->
 <!-- usage -->
 ```sh-session
-$ sfdx plugins:install djc
-$ sfdx djc:datatree COMMAND
+$ npm install -g datatree
+$ datatree COMMAND
 running command...
-$ sfdx djc:datatree (-v|--version|version)
-data2/0.0.0 darwin-x64 node-v9.3.0
-$ sfdx djc:datatree --help [COMMAND]
+$ datatree (-v|--version|version)
+datatree/0.0.0 darwin-x64 node-v9.3.0
+$ datatree --help [COMMAND]
 USAGE
-  $ sfdx djc:datatree COMMAND
+  $ datatree COMMAND
 ...
 ```
 <!-- usagestop -->
 <!-- commands -->
-* [`data2 data:examine`](#data-2-dataexamine)
-* [`data2 data:packagebuilder`](#data-2-datapackagebuilder)
+* [`datatree djc:data:examine`](#datatree-djcdataexamine)
 
-## `data2 data:examine`
+## `datatree djc:data:examine`
 
 Test data export
 
 ```
 USAGE
-  $ data2 data:examine
+  $ datatree djc:data:examine
 
 OPTIONS
-  -o, --objects=objects                           Comma separated list of objects to fetch
-  -t, --targetdir=targetdir                       target directoy to place results in
+  -o, --objects=objects                           (required) Comma separated list of objects to fetch
+  -t, --targetdir=targetdir                       (required) target directoy to place results in
   -u, --targetusername=targetusername             username or alias for the target org; overrides default target org
   --apiversion=apiversion                         override the api version used for api requests made by this command
   --json                                          format output as json
   --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
 
 EXAMPLE
-  $ sfdx data:examine --targetusername myOrg@example.com
+  $ sfdx data:examine -o Account,Contact,Case,Opportunity -t data/exported
 ```
 
-_See code: [src/commands/data/examine.ts](https://github.com/dcarroll/data2/blob/v0.0.0/src/commands/data/examine.ts)_
-
-## `data2 data:packagebuilder`
-
-```
-USAGE
-  $ data2 data:packagebuilder
-
-OPTIONS
-  --json                                          format output as json
-  --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
-
-EXAMPLE
-  $ sfdx data:packagebuilder --targetusername myOrg@example.com
-```
-
-_See code: [src/commands/data/packagebuilder.ts](https://github.com/dcarroll/data2/blob/v0.0.0/src/commands/data/packagebuilder.ts)_
+_See code: [src/commands/djc/data/examine.ts](https://github.com/dcarroll/datatree/blob/v0.0.0/src/commands/djc/data/examine.ts)_
 <!-- commandsstop -->
 <!-- debugging-your-plugin -->
 # Debugging your plugin

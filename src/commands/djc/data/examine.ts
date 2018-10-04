@@ -64,15 +64,15 @@ export default class Examine extends SfdxCommand {
   public static description = 'Test data export'; // messages.getMessage('commandDescription');
 
   public static examples = [
-    `$ sfdx data:examine --targetusername myOrg@example.com
+    `$ sfdx data:examine -o Account,Contact,Case,Opportunity -t data/exported
   `
   ];
 
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
-    objects: flags.string({char: 'o', description: 'Comma separated list of objects to fetch' }),
-    targetdir: flags.string({char: 't', description: 'target directoy to place results in'})
+    objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
+    targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'})
   };
 
   // Comment this out if your command does not require an org username
@@ -559,7 +559,7 @@ export default class Examine extends SfdxCommand {
   private async makeDescribeMap(objects, conn) {
     const describeMap = {}; // Objectname describe result map
     for (const object of this.objects) {
-      let describeResult;
+      let describeResult: IDescribeSObjectResult;
       if (!fs.existsSync('./describes')) {
         fs.mkdirSync('./describes');
       }

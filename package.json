@@ -1,9 +1,9 @@
 {
-  "name": "data2",
+  "name": "datatree",
   "description": "Testing",
   "version": "0.0.0",
   "author": "Dave Carroll @dcarroll",
-  "bugs": "https://github.com/dcarroll/data2/issues",
+  "bugs": "https://github.com/dcarroll/datatree/issues",
   "dependencies": {
     "@oclif/command": "1",
     "@oclif/config": "1",
@@ -37,7 +37,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/dcarroll/data2",
+  "homepage": "https://github.com/dcarroll/datatree",
   "keywords": [
     "sfdx-plugin"
   ],
@@ -45,15 +45,15 @@
   "oclif": {
     "commands": "./lib/commands",
     "topics": {
-      "hello": {
-        "description": "Commands to say hello."
+      "djc:examine": {
+        "description": "Analyze and export data based on list of SObjects"
       }
     },
     "devPlugins": [
       "@oclif/plugin-help"
     ]
   },
-  "repository": "dcarroll/data2",
+  "repository": "dcarroll/datatree",
   "scripts": {
     "postpack": "rm -f oclif.manifest.json npm-shrinkwrap.json",
     "posttest": "tsc -p test --noEmit && tslint -p test -t stylish",
