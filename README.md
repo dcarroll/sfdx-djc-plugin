@@ -1,25 +1,22 @@
-data-tree
+datatree
 =====
 
-Testing
-
-[![Version](https://img.shields.io/npm/v/data-tree.svg)](https://npmjs.org/package/data-tree)
-[![License](https://img.shields.io/npm/l/data-tree.svg)](https://github.com/dcarroll/data-tree/blob/master/package.json)
+[![Version](https://img.shields.io/npm/v/datatree.svg)](https://npmjs.org/package/datatree)
+[![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/datatree/blob/master/package.json)
 
 <!-- toc -->
-* [Debugging your plugin](#debugging-your-plugin)
 <!-- tocstop -->
 <!-- install -->
 <!-- usage -->
 ```sh-session
-$ npm install -g data2
-$ data2 COMMAND
+$ sfdx plugins:install djc
+$ sfdx djc:datatree COMMAND
 running command...
-$ data2 (-v|--version|version)
+$ sfdx djc:datatree (-v|--version|version)
 data2/0.0.0 darwin-x64 node-v9.3.0
-$ data2 --help [COMMAND]
+$ sfdx djc:datatree --help [COMMAND]
 USAGE
-  $ data2 COMMAND
+  $ sfdx djc:datatree COMMAND
 ...
 ```
 <!-- usagestop -->
