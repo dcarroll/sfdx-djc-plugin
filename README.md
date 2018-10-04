@@ -1,16 +1,11 @@
-data2
+data-tree
 =====
 
 Testing
 
-[![Version](https://img.shields.io/npm/v/data2.svg)](https://npmjs.org/package/data2)
-[![CircleCI](https://circleci.com/gh/dcarroll/data2/tree/master.svg?style=shield)](https://circleci.com/gh/dcarroll/data2/tree/master)
-[![Appveyor CI](https://ci.appveyor.com/api/projects/status/github/dcarroll/data2?branch=master&svg=true)](https://ci.appveyor.com/project/heroku/data2/branch/master)
-[![Codecov](https://codecov.io/gh/dcarroll/data2/branch/master/graph/badge.svg)](https://codecov.io/gh/dcarroll/data2)
-[![Greenkeeper](https://badges.greenkeeper.io/dcarroll/data2.svg)](https://greenkeeper.io/)
-[![Known Vulnerabilities](https://snyk.io/test/github/dcarroll/data2/badge.svg)](https://snyk.io/test/github/dcarroll/data2)
-[![Downloads/week](https://img.shields.io/npm/dw/data2.svg)](https://npmjs.org/package/data2)
-[![License](https://img.shields.io/npm/l/data2.svg)](https://github.com/dcarroll/data2/blob/master/package.json)
+[![Version](https://img.shields.io/npm/v/data2.svg)](https://npmjs.org/package/data-tree)
+[![Downloads/week](https://img.shields.io/npm/dw/data2.svg)](https://npmjs.org/package/data-tree)
+[![License](https://img.shields.io/npm/l/data-tree.svg)](https://github.com/dcarroll/data-tree/blob/master/package.json)
 
 <!-- toc -->
 * [Debugging your plugin](#debugging-your-plugin)
