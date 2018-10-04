@@ -3,8 +3,7 @@ data-tree
 
 Testing
 
-[![Version](https://img.shields.io/npm/v/data2.svg)](https://npmjs.org/package/data-tree)
-[![Downloads/week](https://img.shields.io/npm/dw/data2.svg)](https://npmjs.org/package/data-tree)
+[![Version](https://img.shields.io/npm/v/data-tree.svg)](https://npmjs.org/package/data-tree)
 [![License](https://img.shields.io/npm/l/data-tree.svg)](https://github.com/dcarroll/data-tree/blob/master/package.json)
 
 <!-- toc -->
