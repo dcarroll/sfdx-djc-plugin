@@ -1,72 +1,79 @@
-datatree
+sfdx-djc-plugin
 =====
 
-[![Version](https://img.shields.io/npm/v/datatree.svg)](https://npmjs.org/package/datatree)
-[![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/datatree/blob/master/package.json)
+[![Version](https://img.shields.io/npm/v/datatree.svg)](https://npmjs.org/package/sfdx-djc-plugin)
+[![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/sfdx-djc-plugin/blob/master/package.json)
+
 
 <!-- toc -->
-* [Debugging your plugin](#debugging-your-plugin)
-<!-- tocstop -->
+
+[![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->
 <!-- install -->
+A plugin for the Salesforce CLI built by Dave Carroll and containing a few of helpful commands.
+
+## Setup
+
+### Install from source
+
+1. Install the SDFX CLI.
+
+2. Clone the repository: `git clone git@github.com:wadewegner/sfdx-waw-plugin.git`
+
+3. Install npm modules: `npm install`
+
+4. Link the plugin: `sfdx plugins:link .`
+
+### Install as plugin
+
+1. Install plugin: `sfdx plugins:install sfdx-waw-plugin`
+
 <!-- usage -->
 ```sh-session
-$ npm install -g datatree
-$ datatree COMMAND
+$ npm install -g sfdx
+$ sfdx COMMAND
 running command...
-$ datatree (-v|--version|version)
-datatree/0.0.0 darwin-x64 node-v9.3.0
-$ datatree --help [COMMAND]
+$ sfdx (-v|--version|version)
+sfdx/0.0.0 darwin-x64 node-v9.3.0
+$ sfdx --help [COMMAND]
 USAGE
-  $ datatree COMMAND
+  $ sfdx COMMAND
 ...
 ```
 <!-- usagestop -->
 <!-- commands -->
-* [`datatree djc:data:examine`](#datatree-djcdataexamine)
+* [`sfdx djc:data:export`](#sfdx-djcdataexport)
 
-## `datatree djc:data:examine`
+## `sfdx djc:data:export`
 
-Test data export
+This is a proof of concept of a entirely differenct way to extract data from an org to use as developer data for a scratch org.  Just supply a list of SObject, standard or custom, and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
 
 ```
 USAGE
-  $ datatree djc:data:examine
+  $ sfdx djc:data:export
 
 OPTIONS
+  -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
+
+  -n, --planname=planname                         [default: new-plan] name of the data plan to produce, deflaults to
+                                                  "new-plan"
+
   -o, --objects=objects                           (required) Comma separated list of objects to fetch
+
   -t, --targetdir=targetdir                       (required) target directoy to place results in
+
   -u, --targetusername=targetusername             username or alias for the target org; overrides default target org
+
   --apiversion=apiversion                         override the api version used for api requests made by this command
+
   --json                                          format output as json
+
   --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
 
 EXAMPLE
-  $ sfdx data:examine -o Account,Contact,Case,Opportunity -t data/exported
+  $ sfdx djc:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
+  $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
 ```
 
-_See code: [src/commands/djc/data/examine.ts](https://github.com/dcarroll/datatree/blob/v0.0.0/src/commands/djc/data/examine.ts)_
+_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.0/src/commands/djc/data/export.ts)_
 <!-- commandsstop -->
-<!-- debugging-your-plugin -->
-# Debugging your plugin
-We recommend using the Visual Studio Code (VS Code) IDE for your plugin development. Included in the `.vscode` directory of this plugin is a `launch.json` config file, which allows you to attach a debugger to the node process when running your commands.
-
-To debug the `hello:org` command: 
-1. Start the inspector
-  
-If you linked your plugin to the sfdx cli, call your command with the `dev-suspend` switch: 
-```sh-session
-$ sfdx hello:org -u myOrg@example.com --dev-suspend
-```
-  
-Alternatively, to call your command using the `bin/run` script, set the `NODE_OPTIONS` environment variable to `--inspect-brk` when starting the debugger:
-```sh-session
-$ NODE_OPTIONS=--inspect-brk bin/run hello:org -u myOrg@example.com
-```
-
-2. Set some breakpoints in your command code
-3. Click on the Debug icon in the Activity Bar on the side of VS Code to open up the Debug view.
-4. In the upper left hand corner of VS Code, verify that the "Attach to Remote" launch configuration has been chosen.
-5. Hit the green play button to the left of the "Attach to Remote" launch configuration window. The debugger should now be suspended on the first line of the program. 
-6. Hit the green play button at the top middle of VS Code (this play button will be to the right of the play button that you clicked in step #5).
-<br><img src=".images/vscodeScreenshot.png" width="480" height="278"><br>
-Congrats, you are debugging!
+# sfdx-waw-plugins [![Build Status](https://travis-ci.org/wadewegner/sfdx-waw-plugin.svg?branch=master)](https://travis-ci.org/wadewegner/sfdx-waw-plugin)

@@ -1,5 +1,5 @@
 {
-  "name": "datatree",
+  "name": "sfdx",
   "description": "Testing",
   "version": "0.0.0",
   "author": "Dave Carroll @dcarroll",
@@ -45,8 +45,8 @@
   "oclif": {
     "commands": "./lib/commands",
     "topics": {
-      "djc:examine": {
-        "description": "Analyze and export data based on list of SObjects"
+      "djc:data:export": {
+        "description": "export data based on list of SObjects"
       }
     },
     "devPlugins": [

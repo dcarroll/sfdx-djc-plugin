@@ -1,5 +1,5 @@
 {
-  "name": "datatree",
+  "name": "sfdx",
   "version": "0.0.0",
   "lockfileVersion": 1,
   "requires": true,
@@ -431,7 +431,7 @@
       "version": "10.11.4"
     },
     "@types/sinon": {
-      "version": "5.0.3"
+      "version": "5.0.4"
     },
     "ajv": {
       "version": "5.5.2",
@@ -5245,7 +5245,7 @@
       }
     },
     "spdx-correct": {
-      "version": "3.0.1",
+      "version": "3.0.2",
       "requires": {
         "spdx-expression-parse": "^3.0.0",
         "spdx-license-ids": "^3.0.0"
