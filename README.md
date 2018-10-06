@@ -5,6 +5,8 @@
 
 
 <!-- toc -->
+* [sfdx-djc-plugin  [![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->](#sfdx-djc-plugin-build-status-https-travis-ci-org-dcarroll-sfdx-djc-plugin-svg-branch-master-https-travis-ci-org-dcarroll-sfdx-djc-plugin-tocstop)
+<!-- tocstop -->
 
 <!-- install -->
 A plugin for the Salesforce CLI built by Dave Carroll and containing a few of helpful commands.
