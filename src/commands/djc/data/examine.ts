@@ -93,8 +93,6 @@ export default class Examine extends SfdxCommand {
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
   protected static requiresProject = false;
 
-  private listOfChildren = []; // List of object names that are children of other objects
-  private listOfParents = [];  // List of object names that are referenced by Id from other objects
   private describeMap = {}; // Objectname describe result map
   private relMap: RelationshipMap; // map of object name and children and/or parents
   private objects: string[];
@@ -129,7 +127,7 @@ export default class Examine extends SfdxCommand {
 
     // Run the queries and put the data into individual json files.
     // await this.runQueries();
-    await this.testqueries(this.org.getConnection());
+    await this.runQueries(this.org.getConnection());
 
     this.planEntries = this.createDataPlan();
 
@@ -147,7 +145,6 @@ export default class Examine extends SfdxCommand {
     // tslint:disable-next-line:forin
     for (let objName in this.dataMap) {
       objName = objName.split('.')[0];
-      // const output = { records: [] };
       // tslint:disable-next-line:forin
       for (const ind in this.dataMap[objName].records) {
         const record = this.dataMap[objName].records[ind];
@@ -159,7 +156,6 @@ export default class Examine extends SfdxCommand {
         }
       }
       this.createRefs(this.dataMap[objName]);
-      // this.dataMap[objName] = output;
     }
 
     this.pruneBadReferences();
@@ -279,11 +275,9 @@ export default class Examine extends SfdxCommand {
     return rootData;
   }
 
-  private async testqueries(connection: Connection) {
+  private async runQueries(connection: Connection) {
     // tslint:disable-next-line:forin
     for (const index in this.objects) {
-    // }
-    // for (const ind in this.relMap) {
       const ind = this.objects[index];
       const rootObj = this.relMap[ind];
       if (!isUndefined(rootObj.childRefs)) {
@@ -457,14 +451,6 @@ export default class Examine extends SfdxCommand {
   }
 
   private makeRelationshipMap(objects) {
-    /* Sample of the struction of the relationship map
-      {
-        { "Account": {
-          parentRefs: [],
-          childRefs: []
-        }}
-      }
-    */
     const relationshipMap: RelationshipMap = {} as RelationshipMap;
     _.merge(relationshipMap,
             this.getObjectChildRelationships(objects),
