@@ -1,5 +1,4 @@
-sfdx-djc-plugin
-=====
+# sfdx-djc-plugin  [![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->
 
 [![Version](https://img.shields.io/npm/v/datatree.svg)](https://npmjs.org/package/sfdx-djc-plugin)
 [![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/sfdx-djc-plugin/blob/master/package.json)
@@ -7,7 +6,6 @@ sfdx-djc-plugin
 
 <!-- toc -->
 
-[![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->
 <!-- install -->
 A plugin for the Salesforce CLI built by Dave Carroll and containing a few of helpful commands.
 
@@ -76,4 +74,3 @@ EXAMPLE
 
 _See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.0/src/commands/djc/data/export.ts)_
 <!-- commandsstop -->
-# sfdx-waw-plugins [![Build Status](https://travis-ci.org/wadewegner/sfdx-waw-plugin.svg?branch=master)](https://travis-ci.org/wadewegner/sfdx-waw-plugin)
