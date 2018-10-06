@@ -15,7 +15,7 @@ import * as he from 'he';
 import { QueryResult } from 'jsforce';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
-// const messages = core.Messages.loadMessages('data', 'examine');
+// const messages = core.Messages.loadMessages('data', 'export');
 interface ChildRelationship {
   cascadeDelete: boolean;
   childSObject: string;
@@ -68,11 +68,12 @@ interface PlanEntry {
   files: string[];
 }
 
-export default class Examine extends SfdxCommand {
-  public static description = 'Test data export'; // messages.getMessage('commandDescription');
+export default class Export extends SfdxCommand {
+  public static description = 'This is a proof of concept of a entirely differenct way to extract data from an org to use as developer data for a scratch org.  Just supply a list of SObject, standard or custom, and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command'; // messages.getMessage('commandDescription');
 
   public static examples = [
-    `$ sfdx data:examine -o Account,Contact,Case,Opportunity -t data/exported
+    `$ sfdx djc:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
+$ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
   `
   ];
 
@@ -80,6 +81,7 @@ export default class Examine extends SfdxCommand {
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
     objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
+    planname: flags.string({ default: 'new-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
     targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
     maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'})
   };
