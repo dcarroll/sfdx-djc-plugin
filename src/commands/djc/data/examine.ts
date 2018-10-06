@@ -12,6 +12,7 @@ import { isString, isUndefined } from 'util';
 
 import { Connection, JsonMap } from '@salesforce/core';
 import * as he from 'he';
+import { QueryResult } from 'jsforce';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'examine');
@@ -60,6 +61,13 @@ interface RelationshipMap {
   childRefs: ChildRelationship[];
 }
 
+interface PlanEntry {
+  sobject: string;
+  saveRefs: boolean;
+  resolveRefs: boolean;
+  files: string[];
+}
+
 export default class Examine extends SfdxCommand {
   public static description = 'Test data export'; // messages.getMessage('commandDescription');
 
@@ -72,7 +80,8 @@ export default class Examine extends SfdxCommand {
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
     objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
-    targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'})
+    targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
+    maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'})
   };
 
   // Comment this out if your command does not require an org username
@@ -83,24 +92,24 @@ export default class Examine extends SfdxCommand {
 
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
   protected static requiresProject = false;
+
   private listOfChildren = []; // List of object names that are children of other objects
   private listOfParents = [];  // List of object names that are referenced by Id from other objects
   private describeMap = {}; // Objectname describe result map
   private relMap: RelationshipMap; // map of object name and children and/or parents
   private objects: string[];
   private dataMap = {};
+  private planEntries: PlanEntry[];
+  private globalIds: string[] = [] as string[];
 
   // tslint:disable-next-line:no-any
   public async run(): Promise<any> {
-
     // We take in a set of object that we want to generate data for.  We will
     // examine the relationships of the included objects to one another to datermine
     // what to export and in what order.
-    // tslint:disable-line:no-any
     this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
 
     const conn = this.org.getConnection();
-
     // Create a map of object describes keyed on object name, based on
     // describe calls.  This should be cacheing the describe, at least
     // for development purposes.
@@ -117,148 +126,152 @@ export default class Examine extends SfdxCommand {
     // Create the query map, a heirachical set of queries to make,
     // the actual soql criteria is an "in" clause using the ideas from
     // the previous queries.
-    // queryMap = this.createQueryMap(this.relMap);
-
-    // this.ux.logJson(this.queryMap);
-
-    // _.forEach(this.objects, (obj) => {
-    //   if (this.isRootLevel(obj, this.queryMap)) {
-    //     this.ux.log(obj, ' is root level object');
-    //   }
-    // });
 
     // Run the queries and put the data into individual json files.
     // await this.runQueries();
     await this.testqueries(this.org.getConnection());
 
+    this.planEntries = this.createDataPlan();
+
     await this.saveData();
 
-    return this.relMap;
+    // return this.planEntries;
   }
 
+  // Save data iterates over the in-memory data sets.  For each data set,
+  // each record is examined and the referenceId returned from the query
+  // is set to just the id, rather than a url. After the data sets have been
+  // adjusted, the data is written to the file system at the location passed
+  // on the --targetdir flag.
   private async saveData() {
-    const datasets = {};
     // tslint:disable-next-line:forin
     for (let objName in this.dataMap) {
-      // Normalize object name, we are going to flatten all data into type files
-      if (objName.indexOf('.') !== -1) {
-        objName = objName.split('.')[0];
-      }
-      if (isUndefined(datasets[objName])) {
-        datasets[objName] = {};
-      }
-      const dataset = datasets[objName];
-
-      // Add each record to a new container for the object type
+      objName = objName.split('.')[0];
+      // const output = { records: [] };
       // tslint:disable-next-line:forin
-      for (const index in this.dataMap[objName].records) {
-        const record = this.dataMap[objName].records[index];
-        record.attributes['referenceId'] = record.Id;
-        dataset[record.Id] = record;
-      }
-    }
-
-    // tslint:disable-next-line:forin
-    for (const objName in datasets) {
-      if (!fs.existsSync(this.flags.targetdir)) {
-        fs.mkdirSync(this.flags.targetdir);
-      } else {
-        if (fs.existsSync(path.join(this.flags.targetdir, objName))) {
-          fs.rmdirSync(path.join(this.flags.targetdir, objName));
+      for (const ind in this.dataMap[objName].records) {
+        const record = this.dataMap[objName].records[ind];
+        if (!isUndefined(record.attributes)) {
+          record.attributes['referenceId'] = record.Id;
+          // output.records.push(record);
+        } else {
+          this.dataMap[objName].records.splice(ind, 1);
         }
-        // fs.mkdirSync('./data');
       }
-      const output = { records: [] };
-      // tslint:disable-next-line:forin
-      for (const ind in datasets[objName]) {
-        output.records.push(datasets[objName][ind]);
-      }
-      this.stashIds(output);
-      fs.writeFileSync(path.join(this.flags.targetdir, objName + '.json'), JSON.stringify(output, null, 4));
+      this.createRefs(this.dataMap[objName]);
+      // this.dataMap[objName] = output;
     }
-    console.log('Done');
+
+    this.pruneBadReferences();
+    // tslint:disable-next-line:forin
+    for (let objName in this.dataMap) {
+      objName = objName.split('.')[0];
+      fs.writeFileSync(path.join(this.flags.targetdir, objName + '.json'), JSON.stringify(this.dataMap[objName], null, 4));
+    }
+    fs.writeFileSync(path.join(this.flags.targetdir, 'new-data-plan.json'), JSON.stringify(this.planEntries, null, 4));
   }
 
-  /*private mergeFiles() {
-    this.ux.log('Running merge');
-    const results = fs.readdirSync('./queryresults');
-    // tslint:disable-next-line:prefer-for-of
-    for (let y = 0; y < this.objects.length; y++) {
-    // _.forEach(this.objects, (obj) => {
-      const obj = this.objects[y];
-      const mergeCandidates: object[] = [];
-      // tslint:disable-next-line:prefer-for-of
-      for (let i = 0; i < results.length; i++) {
-        const fileName = results[i];
-        const fileNameLeft = fileName.split('.')[0];
-        if (fileNameLeft === obj) {
-          if (!_.isUndefined(this.didQuery[fileNameLeft])) {
-            mergeCandidates.push(
-              { records: this.didQuery[fileNameLeft]['records'],
-                file: fileName
+  private pruneBadReferences() {
+    for (const key in this.dataMap) {
+      if (this.dataMap.hasOwnProperty(key)) {
+        const records: Array<{}> = this.dataMap[key].records;
+        // records.forEach(record => {
+        // tslint:disable-next-line:prefer-for-of
+        for (let i = 0; i < records.length; i++) {
+          const record = records[i];
+          for (const fieldName in record) {
+            if (fieldName !== 'attributes' && record.hasOwnProperty(fieldName)) {
+              const value: string = record[fieldName].toString();
+              if (value.startsWith('@ref')) {
+                if (!this.globalIds.includes(value.split('@ref')[1])) {
+                  // tslint:disable-next-line:no-delete-expression
+                  this.dataMap[key].records.splice(i--, 1);
+                }
               }
-          );
+            }
           }
         }
       }
-      if (mergeCandidates.length > 1) {
-        const merged = _.union(mergeCandidates);
-        // tslint:disable-next-line:prefer-for-of
-        // for (let x = 0; x < mergeCandidates.length; x++) {
-        //  fs.unlinkSync(path.join(process.cwd(), 'queryresults', mergeCandidates[x]['file']));
-        // }
-        // fs.writeFileSync('./queryresults/' + obj + '.json', JSON.stringify(merged, null, 4));
+    }
+  }
+
+  private createDataPlan(): PlanEntry[] {
+    const planEntries: PlanEntry[] = [] as PlanEntry[];
+    // tslint:disable-next-line:forin
+    for (const ind in this.objects) {
+    // for (const key in this.relMap) {
+      const key = this.objects[ind];
+      const obj: RelationshipMap = this.relMap[key];
+      if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
+        // This is an object that has children, so should bubble up to the top of the plan
+        planEntries.push(this.makeParentPlanEntry(key, obj));
+      } else if (obj.parentRefs.length > 0) {
+        planEntries.push(this.makePlanEntry(key, obj));
       }
     }
-  }*/
+    return planEntries;
+  }
 
-  // Not used
-  private saveQueryResults(objName, qr) {
-    fs.writeFileSync('./queryresults/' + objName + '.json', JSON.stringify(qr, null, 4));
+  private makePlanEntry(sObjectName: string, obj: RelationshipMap): PlanEntry {
+    const planEntry: PlanEntry = {} as PlanEntry;
+    planEntry.sobject = sObjectName;
+    planEntry.resolveRefs = true;
+    planEntry.files = [];
+    planEntry.files.push(sObjectName + '.json');
+    return planEntry;
+  }
+
+  private makeParentPlanEntry(sObjectName: string, obj: RelationshipMap): PlanEntry {
+    const planEntry: PlanEntry = {} as PlanEntry;
+    planEntry.sobject = sObjectName;
+    planEntry.saveRefs = true;
+    if (obj.parentRefs !== undefined && obj.parentRefs.length > 0) {
+      planEntry.resolveRefs = true;
+    }
+    planEntry.files = [];
+    planEntry.files.push(sObjectName + '.json');
+    return planEntry;
   }
 
   // tslint:disable-next-line:no-any
-  private stashIds(data: any) {
+  private createRefs(data: any) {
     const idMap = {};
     const regex = /[a-zA-Z0-9]{15}|[a-zA-Z0-9]{18}/;
     data.records.forEach(element => {
+      // tslint:disable-next-line:forin
       for (const key in element) {
-        if (element.hasOwnProperty(key)) {
-          const value = element[key] + '';
-          if (value.match(regex)) {
-            if (key === 'OwnerId') {
-              delete element[key];
+        const value = element[key] + '';
+        if ((value.length === 18 || value.length === 15) && value.match(regex)) {
+          if (key === 'OwnerId') {
+            delete element[key];
+          } else {
+            if (idMap.hasOwnProperty(value)) {
+              element[key] = idMap[value]['ref'];
             } else {
-              if (idMap.hasOwnProperty(value)) {
-                element[key] = idMap['ref'];
-              } else {
-                idMap[value] = { key, ref: '@ref' + value };
-                element[key] = '@ref' + value;
-              }
-              if (key === 'Id') {
-                element['attributes']['referenceId'] = 'ref' + value;
-                delete element['attributes']['url'];
-                delete element[key];
-              }
+              idMap[value] = { key, ref: '@ref' + value };
+              element[key] = '@ref' + value;
+            }
+            if (key === 'Id') {
+              element['attributes']['referenceId'] = 'ref' + value;
+              delete element['attributes']['url'];
+              delete element[key];
             }
           }
         }
       }
     });
-    // this.ux.log(JSON.stringify(idMap, null, 4));
   }
 
   private removeNulls(rootData) {
     rootData.records.forEach(element => {
+      // tslint:disable-next-line:forin
       for (const key in element) {
-        if (element.hasOwnProperty(key)) {
-          const field = element[key];
-          if (field === null) {
-            delete element[key];
-          } else {
-            if (isString(field)) {
-              element[key] = he.decode(field);
-            }
+        const field = element[key];
+        if (field === null) {
+          delete element[key];
+        } else {
+          if (isString(field)) {
+            element[key] = he.decode(field);
           }
         }
       }
@@ -268,36 +281,70 @@ export default class Examine extends SfdxCommand {
 
   private async testqueries(connection: Connection) {
     // tslint:disable-next-line:forin
-    for (const ind in this.relMap) {
+    for (const index in this.objects) {
+    // }
+    // for (const ind in this.relMap) {
+      const ind = this.objects[index];
       const rootObj = this.relMap[ind];
-      // Run query and store in qrMap
-      const soql = await this.generateSimpleQuery(ind);
-      console.log('\nQuery root object: ' + ind + '\n' + soql);
-      let rootData = await connection.query(soql);
-      rootData = this.removeNulls(rootData);
-      // this.stashIds(rootData);
-      if (rootData.totalSize > 0) {
-        this.dataMap[ind] = rootData;
-      }
-      // console.log(JSON.stringify(data, null, 4));
-      const ids = this.pullIds(this.dataMap[ind]);
-      // tslint:disable-next-line:forin
-      for (const dependent in rootObj.childRefs) {
-        // Run query using ids from rootObj in where clause for dependent
-        const childSObject = rootObj.childRefs[dependent];
-        if (rootObj.name !== childSObject.childSObject) {
-          console.log('\tQuery dependent object: ' + childSObject.childSObject);
-          const dependentSoql = await this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field);
-          console.log('\tSOQL: \n\t' + dependentSoql);
-          const dataMapIndex = childSObject.childSObject + '.' + childSObject.field;
-          const dependentData = await connection.query(dependentSoql);
-          if (dependentData.totalSize > 0) {
-            this.dataMap[dataMapIndex] = await connection.query(dependentSoql);
-            console.log('here');
+      if (!isUndefined(rootObj.childRefs)) {
+        // Run query and store in qrMap
+        const soql = await this.generateSimpleQuery(ind);
+        let rootData = await connection.query(soql);
+        rootData = this.removeNulls(rootData);
+
+        if (rootData.totalSize > 0) {
+          this.dataMap[ind] = rootData;
+        }
+
+        const ids = this.pullIds(this.dataMap[ind]);
+
+        // tslint:disable-next-line:forin
+        for (const dependent in rootObj.childRefs) {
+          // Run query using ids from rootObj in where clause for dependent
+          const childSObject = rootObj.childRefs[dependent];
+          if (rootObj.name !== childSObject.childSObject) {
+            const dependentSoql = await this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field);
+            const dataMapIndex = childSObject.childSObject; // + '.' + childSObject.field;
+            let dependentData = await connection.query(dependentSoql);
+            dependentData = this.removeNulls(dependentData);
+            if (dependentData.totalSize > 0) {
+              this.addToDatamap(dataMapIndex, dependentData);
+              // this.dataMap[dataMapIndex] = dependentData;
+            }
           }
         }
+      } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
+        const soql = await this.generateSimpleQuery(ind);
+        let rootData = await connection.query(soql);
+        rootData = this.removeNulls(rootData);
+
+        if (rootData.totalSize > 0) {
+          this.dataMap[ind] = rootData;
+        }
+
+        const ids = this.pullIds(this.dataMap[ind]);
       }
     }
+  }
+
+  private addToDatamap(dataMapIndex: string, dependentData: QueryResult<{}>) {
+    if (this.dataMap.hasOwnProperty(dataMapIndex)) {
+      // remove duplicates and add to map
+      const newRecords = this.removeDuplicates(this.dataMap[dataMapIndex], dependentData);
+      this.dataMap[dataMapIndex].records.push(newRecords.records);
+    } else {
+      this.dataMap[dataMapIndex] = dependentData;
+    }
+  }
+
+  private removeDuplicates(mapData: QueryResult<{}>, newData: QueryResult<{}>): QueryResult<{}> {
+    mapData.records.forEach(element => {
+      const foundIndex = _.findIndex(newData.records, ['Id', element['Id']]);
+      if ( foundIndex !== -1) {
+        delete newData.records[foundIndex];
+      }
+    });
+    return newData;
   }
 
   private pullIds(data) {
@@ -305,18 +352,19 @@ export default class Examine extends SfdxCommand {
     // tslint:disable-next-line:forin
     for (const ind in data.records) {
       ids.push(data.records[ind].Id);
+      this.globalIds.push(data.records[ind].Id);
     }
     return ids;
   }
 
   private async generateSimpleQuery(objName) {
     const soql = await this.generateQuery(objName);
-    return soql + ' Limit 50';
+    return soql + ' Limit ' + this.flags.maxrecords;
   }
 
   private async generateDependentQuery(objName: string, ids: string[], filterField: string) {
     const soql: string = await this.generateQuery(objName);
-    return soql + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit 50';
+    return soql + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit ' + this.flags.maxrecords;
   }
 
   private async generateQuery(objName) {
@@ -336,166 +384,6 @@ export default class Examine extends SfdxCommand {
     return 'Select ' + selectClause.join(',') + ' From ' + objName;
   }
 
-  // tslint:disable-next-line:no-any
-  /* private async runQueries() {
-    // tslint:disable-next-line:forin
-    for (const ind in this.queryMap) {
-      const rootObj = this.queryMap[ind];
-
-      if (_.isUndefined(this.didQuery[ind])) {
-        this.ux.log('Ok, will query the ' + ind + ' object...');
-        // let qr;
-        if (!fs.existsSync('./queryresults')) {
-          fs.mkdirSync('./queryresults');
-        }
-        if (fs.existsSync('./queryresults/' + ind + '.json')) {
-          this.didQuery[ind] = JSON.parse(fs.readFileSync('./queryresults/' + ind + '.json').toString());
-        } else {
-          const soql = this.generateSOQL(ind) + ' LIMIT 10';
-          const qrx = await this.org.getConnection().query(soql);
-          this.ux.log('Got parent query data...');
-          fs.writeFileSync('./queryresults/' + ind + '.json', JSON.stringify(this.stripNullsFromQueryResult(qrx), null, 4));
-          this.didQuery[ind] = qrx;
-          _.forEach(rootObj.children, async (child, i) => {
-              if (_.isUndefined(this.didQuery[this.getObjectFromName(child)])) {
-                let qr = await this.getRelatedRecords(this.didQuery[ind], child);
-                if (qr.totalSize > 0) {
-                qr = this.stripNullsFromQueryResult(qr);
-                this.ux.log('\tQuerying ', child, ' using ', ind, ' for set of ids to limit query to parent...');
-                this.didQuery[child] = qr;
-                fs.writeFileSync('./queryresults/' + child + '.json', JSON.stringify(qr, null, 4));
-                }
-              } else {
-                this.ux.log('\tGetting ids for ', child, ' from previous query...');
-                this.didQuery[child] = JSON.parse(fs.readFileSync('./queryresults/' + this.getObjectFromName(child) + '.json').toString());
-              }
-            });
-      }
-    } else {
-        this.ux.log('Getting ids for ', ind, ' from previous query...');
-    }
-    }
-  }*/
-
-  /*private getRelatedRecords(qr, relatedField) {
-    const childObject = relatedField.split('.')[0];
-    const relField = relatedField.split('.')[1];
-    const desc = _.get(this.describeMap, [childObject]);
-    let soql = this.generateSOQL(childObject);
-    const ids = [];
-    _.forEach(qr.records, (record) => {
-      ids.push(record.Id);
-    });
-    const where = '\'' +  _.join(ids, '\',\'');
-    const whereClause = `${where}`;
-    soql += ` WHERE ${relField} in (${where}') LIMIT 30`;
-    this.ux.log(soql);
-    return this.org.getConnection().query(soql);
-    // .then((qrx) => {
-    //  return this.stripNullsFromQueryResult(qrx);
-    // });
-  }*/
-
-  private stripNullsFromQueryResult(qr) {
-    _.forEach(qr.records, record => {
-      _.forEach(_.keys(record), key => {
-        if (_.isNull(record[key])) {
-          delete record[key];
-        }
-      });
-    });
-    return qr;
-  }
-
-  private selectFilters(field) {
-    return field.createable
-      && _.indexOf(field.referenceTo, 'User') === -1
-      && _.indexOf(field.referenceTo, 'Group');
-  }
-
-  /*private generateSOQL(objName) {
-    let selectClause: string = 'Id, ';
-    const fieldLimit: number = 100;
-    _.forEach(this.describeMap[objName].fields, (field: Field, index: number) => {
-      if (this.selectFilters(field) && index <= fieldLimit) {
-        selectClause += field.name + ', ';
-      }
-    });
-    selectClause = selectClause.substr(0, selectClause.length - 2);
-    return 'SELECT ' + selectClause + ' FROM ' + objName;
-  }*/
-
-  /*private getObjectFromName(objName) {
-    return objName.split('.')[0];
-  }*/
-
-  /*private isChildOfOtherObject(objName) {
-    const thisMap = this.queryMap[objName];
-    return _.indexOf(thisMap.children, objName);
-  }*/
-
-  // To determine if this is a root level object, we need to look at each object's
-  // describe and see if it is referenced by the other objects. If it is and it's
-  // not a self reference, then it is not a root object, otherwise it is.
-  /*private isRootLevel(objName: string, queryMap): boolean {
-    let result: boolean = true;
-    _.map(queryMap.queryMap, (obj, name) => { // check each element of the queryMap
-      if (name !== objName) { // Now need to see if we are a child of ourselves
-        // at the query map for some object that is not the one we are checking
-        _.map(obj.children, (child, childName) => { // Look for our object in this one's children
-          // Need to check to see if this object is a child of any other objects
-          if (child.split('.')[0] === objName) {
-            result = false;
-            return;
-          }
-        });
-      } else {
-        return true;
-      }
-    });
-    return result;
-  }*/
-
-  private createQueryMap(relationshipMap) {
-    let relationShips = [];
-    _.map(relationshipMap, (value, key, collection) => {
-      relationShips.push(value);
-    });
-    relationShips = _.sortBy(relationShips, o => {
-      if (o.childRefs) {
-        return o.childRefs.length * -1;
-      } else {
-        return 0;
-      }
-    });
-
-    const queryMap = {};
-    const objectInventory = {};
-    _.forEach(relationShips, (value, index, collection) => {
-      _.set(objectInventory, [value.name], index + 1);
-      if (value.hasOwnProperty('childRefs')) {
-        this.listOfParents.push(value.name);
-      }
-      _.forEach(value.childRefs, (child, ind, parents) => {
-        this.listOfChildren.push(child.childSObject);
-        _.set(queryMap, [value.name, 'children', ind] , child.childSObject + '.' + child.field);
-        if (_.isUndefined(objectInventory[child.childSObject])) {
-          _.set(objectInventory, [child.childSObject], index + ind + 1);
-        }
-        // this.ux.log(value.name, ' has children: ', child.childSObject);
-      });
-     /* _.forEach(value.parentRefs, (parent, key, parents) => {
-        _.forEach(parent.referenceTo, (p, i) => {
-          _.set(queryMap, [value.name, i], p);
-          // this.ux.log('References: ' + p);
-        });
-      });*/
-    });
-    this.listOfChildren = _.uniq(this.listOfChildren);
-    this.listOfParents = _.uniq(this.listOfParents);
-    return queryMap;
-  }
-
   private getObjectChildRelationships(objects): RelationshipMap {
     const relationshipMap = {};
     for (const value in this.describeMap) {
@@ -512,22 +400,11 @@ export default class Examine extends SfdxCommand {
             return _.isUndefined(n);
           });
         }
-        _.set(relationshipMap, [value, 'name'], value);
+        if (!isUndefined(relationshipMap[value])) {
+          _.set(relationshipMap, [value, 'name'], value);
+        }
       }
     }
-    /*_.map(this.describeMap, async (value: IDescribeSObjectResult, key, collection) => {
-      _.forEach(value.childRelationships, (child, index) => {
-        if (_.indexOf(objects, child.childSObject) !== -1) {
-          _.set(relationshipMap, [key, 'childRefs', index], child);
-        }
-      });
-      if (relationshipMap[key]) {
-        _.remove(relationshipMap[key]['childRefs'], function(n) {
-          return _.isUndefined(n);
-        });
-      }
-      _.set(relationshipMap, [key, 'name'], key);
-    });*/
     return relationshipMap as RelationshipMap;
   }
 
@@ -535,12 +412,13 @@ export default class Examine extends SfdxCommand {
     const relationshipMap = {};
     // tslint:disable-next-line:no-any
     _.map(this.describeMap, (value: any, key, collection) => {
+      let relIndex = 0;
       _.forEach(value.fields, (field, index, fields) => {
         if (field.type === 'reference') {
           // tslint:disable-next-line:prefer-for-of
           for (let i = 0; i < field.referenceTo.length; i++ ) {
             if (_.indexOf(objects, field.referenceTo[i]) !== -1) {
-              _.set(relationshipMap, [key, 'parentRefs', i], field);
+              _.set(relationshipMap, [key, 'parentRefs', relIndex++], field);
             }
           }
         }
@@ -550,8 +428,9 @@ export default class Examine extends SfdxCommand {
           return _.isUndefined(n);
         });
       }
-      _.set(relationshipMap, [key, 'name'], key);
-
+      if (!isUndefined(relationshipMap[key])) {
+        _.set(relationshipMap, [key, 'name'], key);
+      }
     });
     return relationshipMap as RelationshipMap;
   }
@@ -591,8 +470,6 @@ export default class Examine extends SfdxCommand {
             this.getObjectChildRelationships(objects),
             this.getObjectParentRelationships(objects));
 
-    // this.ux.log('Relationship Map\n\n');
-    // this.ux.logJson(relationshipMap);
     return relationshipMap;
   }
 }

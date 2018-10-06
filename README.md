@@ -33,6 +33,7 @@ USAGE
   $ datatree djc:data:examine
 
 OPTIONS
+  -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
   -o, --objects=objects                           (required) Comma separated list of objects to fetch
   -t, --targetdir=targetdir                       (required) target directoy to place results in
   -u, --targetusername=targetusername             username or alias for the target org; overrides default target org
