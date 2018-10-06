@@ -8,10 +8,9 @@ import { join } from 'path';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { isString, isUndefined } from 'util';
+import { isUndefined } from 'util';
 
-import { Connection, JsonMap } from '@salesforce/core';
-import * as he from 'he';
+import { Connection } from '@salesforce/core';
 import { QueryResult } from 'jsforce';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
@@ -267,10 +266,6 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
         const field = element[key];
         if (field === null) {
           delete element[key];
-        } else {
-          if (isString(field)) {
-            element[key] = he.decode(field);
-          }
         }
       }
     });
@@ -318,7 +313,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
           this.dataMap[ind] = rootData;
         }
 
-        const ids = this.pullIds(this.dataMap[ind]);
+        this.pullIds(this.dataMap[ind]);
       }
     }
   }
