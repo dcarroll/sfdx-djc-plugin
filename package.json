@@ -9,6 +9,7 @@
     "@oclif/config": "1",
     "@oclif/errors": "1",
     "@salesforce/command": "0.1.6",
+    "@types/fs-extra": "^5.0.4",
     "tslib": "1"
   },
   "devDependencies": {

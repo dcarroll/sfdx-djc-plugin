@@ -6,6 +6,7 @@ import { flags } from '@oclif/command';
 import { join } from 'path';
 
 import * as fs from 'fs';
+import * as fsExtra from 'fs-extra';
 import * as path from 'path';
 
 import { isUndefined } from 'util';
@@ -160,6 +161,9 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     }
 
     this.pruneBadReferences();
+    if (!fs.existsSync(this.flags.targetdir)) {
+      fsExtra.ensureDirSync(this.flags.targetdir);
+    }
     // tslint:disable-next-line:forin
     for (let objName in this.dataMap) {
       objName = objName.split('.')[0];
