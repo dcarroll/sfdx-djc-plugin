@@ -1,11 +1,12 @@
-# sfdx-djc-plugin  [![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->
+# sfdx-djc-plugin  [![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)
+
+<!-- tocstop -->
 
 [![Version](https://img.shields.io/npm/v/datatree.svg)](https://npmjs.org/package/sfdx-djc-plugin)
 [![License](https://img.shields.io/npm/l/datatree.svg)](https://github.com/dcarroll/sfdx-djc-plugin/blob/master/package.json)
 
 
 <!-- toc -->
-* [sfdx-djc-plugin  [![Build Status](https://travis-ci.org/dcarroll/sfdx-djc-plugin.svg?branch=master)](https://travis-ci.org/dcarroll/sfdx-djc-plugin)<!-- tocstop -->](#sfdx-djc-plugin-build-status-https-travis-ci-org-dcarroll-sfdx-djc-plugin-svg-branch-master-https-travis-ci-org-dcarroll-sfdx-djc-plugin-tocstop)
 <!-- tocstop -->
 
 <!-- install -->
