@@ -1,7 +1,7 @@
 {
   "name": "sfdx-djc-plugin",
   "description": "Testing",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "author": "Dave Carroll @dcarroll",
   "bugs": "https://github.com/dcarroll/datatree/issues",
   "dependencies": {
