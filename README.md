@@ -59,7 +59,7 @@ OPTIONS
   -n, --planname=planname                         [default: new-plan] name of the data plan to produce, deflaults to
                                                   "new-plan"
 
-  -o, --objects=objects                           (required) Comma separated list of objects to fetch
+  -o, --objects=objects                           Comma separated list of objects to fetch
 
   -t, --targetdir=targetdir                       (required) target directoy to place results in
 

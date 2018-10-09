@@ -11,8 +11,9 @@ import * as path from 'path';
 
 import { isUndefined } from 'util';
 
-import { Connection } from '@salesforce/core';
+import { Connection, Project } from '@salesforce/core';
 import { QueryResult } from 'jsforce';
+import * as Utils from '../../../lib/utils';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
@@ -80,7 +81,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
-    objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
+    objects: flags.string({ required: false, char: 'o', description: 'Comma separated list of objects to fetch' }),
     planname: flags.string({ default: 'new-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
     targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
     maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'})
@@ -107,7 +108,14 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     // We take in a set of object that we want to generate data for.  We will
     // examine the relationships of the included objects to one another to datermine
     // what to export and in what order.
-    this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
+    const project = await Project.resolve();
+    if (isUndefined(this.flags.objects) && !isUndefined(project)) {
+      this.objects = await Utils.getProjectSObjectList(project);
+    } else if (isUndefined(this.flags.objects)) {
+      this.ux.error('Must be in a project if not specifying an object list');
+    } else {
+      this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
+    }
 
     const conn = this.org.getConnection();
     // Create a map of object describes keyed on object name, based on
@@ -202,12 +210,14 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     for (const ind in this.objects) {
     // for (const key in this.relMap) {
       const key = this.objects[ind];
-      const obj: RelationshipMap = this.relMap[key];
-      if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
-        // This is an object that has children, so should bubble up to the top of the plan
-        planEntries.push(this.makeParentPlanEntry(key, obj));
-      } else if (obj.parentRefs.length > 0) {
-        planEntries.push(this.makePlanEntry(key, obj));
+      if (this.relMap[key] !== undefined) {
+        const obj: RelationshipMap = this.relMap[key];
+        if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
+          // This is an object that has children, so should bubble up to the top of the plan
+          planEntries.push(this.makeParentPlanEntry(key, obj));
+        } else if (obj.parentRefs.length > 0) {
+          planEntries.push(this.makePlanEntry(key, obj));
+        }
       }
     }
     return planEntries;
@@ -280,55 +290,55 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     // tslint:disable-next-line:forin
     for (const index in this.objects) {
       const ind = this.objects[index];
-      const rootObj = this.relMap[ind];
+      let rootObj = this.relMap[ind];
+      if (rootObj === undefined) {
+        rootObj = ind;
+      }
       if (!isUndefined(rootObj.childRefs)) {
         // Run query and store in qrMap
         const soql = await this.generateSimpleQuery(ind);
         let rootData = await connection.query(soql);
-        rootData = this.removeNulls(rootData);
-
         if (rootData.totalSize > 0) {
+          rootData = this.removeNulls(rootData);
           this.dataMap[ind] = rootData;
-        }
+          const ids = this.pullIds(this.dataMap[ind]);
 
-        const ids = this.pullIds(this.dataMap[ind]);
-
-        // tslint:disable-next-line:forin
-        for (const dependent in rootObj.childRefs) {
-          // Run query using ids from rootObj in where clause for dependent
-          const childSObject = rootObj.childRefs[dependent];
-          if (rootObj.name !== childSObject.childSObject) {
-            const dependentSoql = await this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field);
-            const dataMapIndex = childSObject.childSObject; // + '.' + childSObject.field;
-            let dependentData = await connection.query(dependentSoql);
-            dependentData = this.removeNulls(dependentData);
-            if (dependentData.totalSize > 0) {
-              this.addToDatamap(dataMapIndex, dependentData);
-              // this.dataMap[dataMapIndex] = dependentData;
+          // tslint:disable-next-line:forin
+          for (const dependent in rootObj.childRefs) {
+            // Run query using ids from rootObj in where clause for dependent
+            const childSObject = rootObj.childRefs[dependent];
+            if (rootObj.name !== childSObject.childSObject) {
+              const dependentSoql = await this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field);
+              const dataMapIndex = childSObject.childSObject; // + '.' + childSObject.field;
+              let dependentData = await connection.query(dependentSoql);
+              if (dependentData.totalSize > 0) {
+                dependentData = this.removeNulls(dependentData);
+                this.addToDatamap(dataMapIndex, dependentData);
+              }
             }
           }
         }
       } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
         const soql = await this.generateSimpleQuery(ind);
         let rootData = await connection.query(soql);
-        rootData = this.removeNulls(rootData);
-
         if (rootData.totalSize > 0) {
+          rootData = this.removeNulls(rootData);
           this.dataMap[ind] = rootData;
+          this.pullIds(this.dataMap[ind]);
         }
-
-        this.pullIds(this.dataMap[ind]);
       }
     }
   }
 
   private addToDatamap(dataMapIndex: string, dependentData: QueryResult<{}>) {
-    if (this.dataMap.hasOwnProperty(dataMapIndex)) {
-      // remove duplicates and add to map
-      const newRecords = this.removeDuplicates(this.dataMap[dataMapIndex], dependentData);
-      this.dataMap[dataMapIndex].records.push(newRecords.records);
-    } else {
-      this.dataMap[dataMapIndex] = dependentData;
+    if (dependentData.records !== undefined) {
+      if (this.dataMap.hasOwnProperty(dataMapIndex)) {
+        // remove duplicates and add to map
+        const newRecords = this.removeDuplicates(this.dataMap[dataMapIndex], dependentData);
+        this.dataMap[dataMapIndex].records.push(newRecords.records);
+      } else {
+        this.dataMap[dataMapIndex] = dependentData;
+      }
     }
   }
 
