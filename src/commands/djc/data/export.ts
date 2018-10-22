@@ -117,11 +117,10 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
       this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
     }
 
-    const conn = this.org.getConnection();
     // Create a map of object describes keyed on object name, based on
     // describe calls.  This should be cacheing the describe, at least
     // for development purposes.
-    this.describeMap = await this.makeDescribeMap(this.objects, conn);
+    this.describeMap = await this.makeDescribeMap(this.objects, this.org.getConnection());
 
     // Create a relationship map. A relationship map object is keyed on the
     // object name and has the following structure.
@@ -192,7 +191,11 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
             if (fieldName !== 'attributes' && record.hasOwnProperty(fieldName)) {
               const value: string = record[fieldName].toString();
               if (value.startsWith('@ref')) {
-                if (!this.globalIds.includes(value.split('@ref')[1])) {
+                // TODO - need to lookup the fieldname reference to in describe map
+                // If the referenceTo is not one of the items in this.objects, then
+                // we can skip the pruning.
+                // this.describeMap[record.attributes.type]
+                if (!this.isInGlobalIds(value) && this.relationshipIncludedInObjectList(record, fieldName)) {
                   // tslint:disable-next-line:no-delete-expression
                   this.dataMap[key].records.splice(i--, 1);
                 }
@@ -204,19 +207,37 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     }
   }
 
+  private isInGlobalIds(value): boolean {
+    return this.globalIds.includes(value.split('@ref')[1]);
+  }
+
+  private relationshipIncludedInObjectList(record, fieldName): boolean {
+    const fields = this.describeMap[record.attributes.type].fields;
+    for (const field in fields) {
+      if (fields[field].name === fieldName) {
+        const refTo = fields[field].referenceTo;
+        if (this.objects.indexOf(refTo) === -1) {
+          return false;
+        } else {
+          return true;
+        }
+      }
+    }
+  }
+
   private createDataPlan(): PlanEntry[] {
     const planEntries: PlanEntry[] = [] as PlanEntry[];
     // tslint:disable-next-line:forin
-    for (const ind in this.objects) {
+    for (const ind in this.dataMap) {
     // for (const key in this.relMap) {
-      const key = this.objects[ind];
-      if (this.relMap[key] !== undefined) {
-        const obj: RelationshipMap = this.relMap[key];
+      const key = this.dataMap[ind];
+      if (this.relMap[ind] !== undefined) {
+        const obj: RelationshipMap = this.relMap[ind];
         if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
           // This is an object that has children, so should bubble up to the top of the plan
           planEntries.push(this.makeParentPlanEntry(key, obj));
         } else if (obj.parentRefs.length > 0) {
-          planEntries.push(this.makePlanEntry(key, obj));
+          planEntries.push(this.makePlanEntry(ind, obj));
         }
       }
     }
@@ -318,7 +339,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
             }
           }
         }
-      } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
+      } else  { // if (!isUndefined(rootObj.parentRefs)) {
         const soql = await this.generateSimpleQuery(ind);
         let rootData = await connection.query(soql);
         if (rootData.totalSize > 0) {
@@ -413,6 +434,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return relationshipMap as RelationshipMap;
   }
 
+  // TODO - This needs to be revisited, not working for non related data
   private getObjectParentRelationships(objects): RelationshipMap {
     const relationshipMap = {};
     // tslint:disable-next-line:no-any
@@ -440,7 +462,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return relationshipMap as RelationshipMap;
   }
 
-  private async makeDescribeMap(objects, conn) {
+  private async makeDescribeMap(objects, connection) {
     const describeMap = {}; // Objectname describe result map
     for (const object of this.objects) {
       let describeResult: IDescribeSObjectResult;
@@ -450,7 +472,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
       if (fs.existsSync('./describes/' + object + '.json')) {
         describeResult = JSON.parse(fs.readFileSync('./describes/' + object + '.json').toString());
       } else {
-        describeResult = await conn.describe(object);
+        describeResult = await connection.describe(object);
         fs.writeFileSync('./describes/' + object + '.json', JSON.stringify(describeResult, null, 4));
       }
       describeMap[object] = {
