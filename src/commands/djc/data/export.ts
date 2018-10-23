@@ -210,6 +210,15 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
         planEntries.push(this.makePlanEntry(key, obj));
       }
     }
+    const sortedEntries = [];
+    // tslint:disable-next-line:prefer-for-of
+    for (let i: number = 0; i < planEntries.length; i++) {
+        const entry = planEntries[i];
+        if (isUndefined(entry.resolveRefs)) {
+          const ent = planEntries.splice(i, 1);
+          planEntries.unshift(ent[0]);
+        }
+    }
     return planEntries;
   }
 
