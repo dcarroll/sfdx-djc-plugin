@@ -35,7 +35,7 @@ $ npm install -g sfdx-djc-plugin
 $ sfdx-djc-plugin COMMAND
 running command...
 $ sfdx-djc-plugin (-v|--version|version)
-sfdx-djc-plugin/0.0.2 darwin-x64 node-v9.3.0
+sfdx-djc-plugin/0.0.3 darwin-x64 node-v9.3.0
 $ sfdx-djc-plugin --help [COMMAND]
 USAGE
   $ sfdx-djc-plugin COMMAND
@@ -76,5 +76,5 @@ EXAMPLE
   $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
 ```
 
-_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.2/src/commands/djc/data/export.ts)_
+_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.3/src/commands/djc/data/export.ts)_
 <!-- commandsstop -->
