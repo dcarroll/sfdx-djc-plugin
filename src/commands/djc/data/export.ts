@@ -159,7 +159,6 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
         const record = this.dataMap[objName].records[ind];
         if (!isUndefined(record.attributes)) {
           record.attributes['referenceId'] = record.Id;
-          // output.records.push(record);
         } else {
           this.dataMap[objName].records.splice(ind, 1);
         }
@@ -362,7 +361,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
 
         if (this._validRootObj(rootObj)) {
           // Run query and store in qrMap
-          const rootData = await connection.query(this.generateSimpleCountQuery(key)).then(rootData => {
+          await connection.query(this.generateSimpleCountQuery(key)).then(rootData => {
             if (rootData.totalSize === 0) {
               delete this.describeMap[key];
               delete this.relMap[key];
