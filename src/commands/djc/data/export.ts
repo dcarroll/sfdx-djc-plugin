@@ -9,10 +9,10 @@ import * as fs from 'fs';
 import * as fsExtra from 'fs-extra';
 import * as path from 'path';
 
-import { isUndefined } from 'util';
+import { isString, isUndefined } from 'util';
 
 import { Connection } from '@salesforce/core';
-import { QueryResult } from 'jsforce';
+import { DescribeSObjectResult, QueryResult } from 'jsforce';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
@@ -25,28 +25,28 @@ interface ChildRelationship {
   junctionReferenceTo: string[];
   relationshipName: string;
   restrictedDelete: boolean;
+  fieldReferenceTo: string;
 }
 
 interface Field {
-  createable: boolean;
   custom: boolean;
-  defaultValue: string;
-  encrypted: boolean;
+  defaultValue?: string | boolean;
+  // encrypted: boolean;
   externalId: boolean;
-  extraTypeInfo: string;
+  // extraTypeInfo: string;
   filterable: boolean;
   idLookup: boolean;
   label: string;
-  mask: string;
-  maskType: string;
+  mask?: string;
+  maskType?: string;
   name: string;
   nameField: boolean;
   namePointing: boolean;
   polymorphicForeignKey: boolean;
-  referenceTargetField: string;
-  referenceTo: string[];
-  relationshipName: string;
-  relationshipOrder: string;
+  referenceTargetField?: string;
+  referenceTo?: string[];
+  relationshipName?: string;
+  relationshipOrder?: number;
   // tslint:disable-next-line:no-reserved-keywords
   type: string;
 }
@@ -54,6 +54,7 @@ interface Field {
 interface IDescribeSObjectResult {
   fields: Field[];
   childRelationships: ChildRelationship[];
+  layoutable: boolean;
 }
 
 interface RelationshipMap {
@@ -83,7 +84,10 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
     planname: flags.string({ default: 'new-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
     targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
-    maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'})
+    maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'}),
+    savedescribes: flags.boolean({ char: 's', description: 'Save describe results (for diagnostics)'}),
+    spiderreferences: flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
+    enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'})
   };
 
   // Comment this out if your command does not require an org username
@@ -96,7 +100,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   protected static requiresProject = false;
 
   private describeMap = {}; // Objectname describe result map
-  private relMap: RelationshipMap; // map of object name and children and/or parents
+  private relMap: RelationshipMap; // map of object name and childRelationships and/or parents
   private objects: string[];
   private dataMap = {};
   private planEntries: PlanEntry[];
@@ -108,33 +112,37 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     // examine the relationships of the included objects to one another to datermine
     // what to export and in what order.
     this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
-
+    // await this.newTest();
+    // return;
     const conn = this.org.getConnection();
     // Create a map of object describes keyed on object name, based on
     // describe calls.  This should be cacheing the describe, at least
     // for development purposes.
+    this.ux.startSpinner('Determining relationships for ' + this.objects.length + ' objects...');
     this.describeMap = await this.makeDescribeMap(this.objects, conn);
-
+    this.ux.stopSpinner('');
     // Create a relationship map. A relationship map object is keyed on the
     // object name and has the following structure.
     // {
     //    parentRefs: Field[];
     //    childRefs: ChildRelationship[];
     // }
-    this.relMap = this.makeRelationshipMap(this.objects);
-
-    // Create the query map, a heirachical set of queries to make,
-    // the actual soql criteria is an "in" clause using the ideas from
-    // the previous queries.
+    this.relMap = this.makeRelationshipMap();
 
     // Run the queries and put the data into individual json files.
-    // await this.runQueries();
-    await this.runQueries(this.org.getConnection());
+    await this.runCountQueries(conn);
 
-    this.planEntries = this.createDataPlan();
+    this.ux.startSpinner('Running queries for ' + _.keys(this.relMap).length + ' objects...');
+    this.planEntries = await this.createDataPlan();
+    await this.runQueries(this.org.getConnection());
+    this.ux.stopSpinner('Saving data...');
 
     await this.saveData();
 
+    if (process.env.NODE_OPTIONS === '--inspect-brk' || this.flags.savedescribes ) {
+      this.saveDescribeMap();
+    }
+    this.ux.log('Finished exporting data and plan.');
     // return this.planEntries;
   }
 
@@ -152,7 +160,6 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
         const record = this.dataMap[objName].records[ind];
         if (!isUndefined(record.attributes)) {
           record.attributes['referenceId'] = record.Id;
-          // output.records.push(record);
         } else {
           this.dataMap[objName].records.splice(ind, 1);
         }
@@ -173,48 +180,125 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   }
 
   private pruneBadReferences() {
-    for (const key in this.dataMap) {
-      if (this.dataMap.hasOwnProperty(key)) {
-        const records: Array<{}> = this.dataMap[key].records;
-        // records.forEach(record => {
-        // tslint:disable-next-line:prefer-for-of
-        for (let i = 0; i < records.length; i++) {
-          const record = records[i];
-          for (const fieldName in record) {
-            if (fieldName !== 'attributes' && record.hasOwnProperty(fieldName)) {
-              const value: string = record[fieldName].toString();
-              if (value.startsWith('@ref')) {
-                if (!this.globalIds.includes(value.split('@ref')[1])) {
-                  // tslint:disable-next-line:no-delete-expression
-                  this.dataMap[key].records.splice(i--, 1);
+    _.forOwn(this.dataMap, (dataMapItem, key) => {
+      // tslint:disable-next-line:no-any
+      const records: Array<{}> = (dataMapItem as any).records;
+      _.forEach(records, (record, index)  => {
+        _.forOwn(record, (field: string, fieldName: string) => {
+          if (fieldName !== 'attributes' && isString(field)) {
+            if (field.startsWith('@ref')) {
+                if (!this.globalIds.includes(field.split('@ref')[1])) {
+                  if (this.flags.enforcereferences) {
+                    this.dataMap[key].records.splice(index, 1);
+                  } else {
+                    delete record[fieldName];
+                  }
                 }
               }
+            }
+        });
+      });
+    });
+  }
+
+  private async listGen(): Promise<string[]> {
+    const listMap = {};
+    for (const key in this.relMap) {
+      if (this.relMap.hasOwnProperty(key)) {
+        const obj = this.relMap[key];
+        // tslint:disable-next-line:forin
+        for (const ind in obj.parentRefs) {
+          const refTo = obj.parentRefs[ind].referenceTo;
+          // tslint:disable-next-line:prefer-for-of
+          for (let i = 0; i < refTo.length; i++) {
+            if (refTo[i] !== key && !isUndefined(this.relMap[refTo])) {
+              if (isUndefined(listMap[refTo])) {
+                listMap[refTo[i]] = [];
+              }
+              listMap[refTo[i]].push(key);
             }
           }
         }
       }
     }
+    return await this.getDataPlanOrder(listMap);
   }
 
-  private createDataPlan(): PlanEntry[] {
-    const planEntries: PlanEntry[] = [] as PlanEntry[];
+  private async getDataPlanOrder(listMap): Promise<string[]> {
+    const tempList: string[] = [];
+    // tslint:disable-next-line:no-any
+    // const listMap: any = await core.json.readJson('./planMapOriginal.json');
     // tslint:disable-next-line:forin
-    for (const ind in this.objects) {
-    // for (const key in this.relMap) {
-      const key = this.objects[ind];
-      const obj: RelationshipMap = this.relMap[key];
-      if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
-        // This is an object that has children, so should bubble up to the top of the plan
-        planEntries.push(this.makeParentPlanEntry(key, obj));
-      } else if (obj.parentRefs.length > 0) {
-        planEntries.push(this.makePlanEntry(key, obj));
+    for (const topLevelObject in listMap) {
+      listMap[topLevelObject].forEach(child => {
+        if (!tempList.includes(child)) {
+          tempList.push(child);
+        }
+      });
+      const isObjRefResult = this.isObjectReferenced(topLevelObject, listMap);
+      if (isObjRefResult.result) {
+        isObjRefResult.refrerencingObject.forEach(refObj => {
+          if (!tempList.includes(refObj)) {
+            // See if topLevelObject is in the list, if it is, we should create the refObj
+            // just above the topLevel object
+            if (tempList.includes(topLevelObject)) {
+              tempList.splice(tempList.indexOf(topLevelObject), 0, refObj);
+            } else {
+              // Neither the topLevelObject nor the refObj are in the list
+              tempList.unshift(refObj);
+            }
+          }
+          const ind = tempList.indexOf(topLevelObject);
+          tempList.splice(tempList.indexOf(refObj) + 1, 0, topLevelObject);
+          if (ind !== -1) {
+            tempList.splice(ind + 1, 1);
+          }
+        });
+      } else {
+        if (!tempList.includes(topLevelObject)) {
+          tempList.unshift(topLevelObject);
+        }
       }
     }
-    const sortedEntries = [];
+    return tempList;
+  }
+
+  private isObjectReferenced(objectName, listMap) {
+    const result = { result: false,
+                   refrerencingObject: [] };
+    for (const topLevelObject in listMap) {
+      if (topLevelObject === objectName) {
+        // Skip, this is the thing itself
+      } else {
+        listMap[topLevelObject].forEach(childElement => {
+          if (childElement === objectName) {
+            result.result = true;
+            result.refrerencingObject.push(topLevelObject);
+          }
+        });
+      }
+    }
+    return result;
+  }
+
+  private async createDataPlan(): Promise<PlanEntry[]> {
+    const listPlan: string[] = await this.listGen();
+    const planEntries: PlanEntry[] = [] as PlanEntry[];
+
+    listPlan.forEach(key => {
+      const obj: RelationshipMap = this.relMap[key];
+      if (!isUndefined(obj)) {
+        if (obj.childRefs !== undefined && obj.childRefs.length > 0) {
+          // This is an object that has childRelationships, so should bubble up to the top of the plan
+          planEntries.push(this.makeParentPlanEntry(key, obj));
+        } else if (obj.parentRefs.length > 0) {
+          planEntries.push(this.makePlanEntry(key, obj));
+        }
+      }
+    });
     // tslint:disable-next-line:prefer-for-of
     for (let i: number = 0; i < planEntries.length; i++) {
-        const entry = planEntries[i];
-        if (isUndefined(entry.resolveRefs)) {
+        if (isUndefined(planEntries[i].resolveRefs)) {
           const ent = planEntries.splice(i, 1);
           planEntries.unshift(ent[0]);
         }
@@ -276,8 +360,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     rootData.records.forEach(element => {
       // tslint:disable-next-line:forin
       for (const key in element) {
-        const field = element[key];
-        if (field === null) {
+        if (element[key] === null) {
           delete element[key];
         }
       }
@@ -285,48 +368,88 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return rootData;
   }
 
-  private async runQueries(connection: Connection) {
-    // tslint:disable-next-line:forin
-    for (const index in this.objects) {
-      const ind = this.objects[index];
-      const rootObj = this.relMap[ind];
+  private shouldQueryThisField(childSObject): boolean {
+    return !isUndefined(childSObject.relationshipName) && !isUndefined(this.relMap[childSObject.childSObject]);
+  }
+
+  private _validRootObj(rootObj): boolean {
+    if (!isUndefined(rootObj)) {
       if (!isUndefined(rootObj.childRefs)) {
-        // Run query and store in qrMap
-        const soql = await this.generateSimpleQuery(ind);
-        let rootData = await connection.query(soql);
-        rootData = this.removeNulls(rootData);
+        return true;
+      }
+    }
+    return false;
+  }
 
-        if (rootData.totalSize > 0) {
-          this.dataMap[ind] = rootData;
-        }
+  private async runQueries(connection: Connection) {
+    for (const sobjectName in this.relMap) {
+      if (this.relMap.hasOwnProperty(sobjectName)) {
+        if (_.findIndex(this.planEntries, [ 'sobject', sobjectName]) === -1) {
+        // if (!_.has(this.planEntries, key)) {
+          delete this.relMap[sobjectName];
+          delete this.describeMap[sobjectName];
+        } else {
+          const rootObj = this.relMap[sobjectName];
 
-        const ids = this.pullIds(this.dataMap[ind]);
+          if (this._validRootObj(rootObj)) {
+            // Run query and store in qrMap
+            await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+              rootData = this.removeNulls(rootData);
+              if (rootData.totalSize > 0) {
+                this.dataMap[sobjectName] = rootData;
+                const ids = this.pullIds(this.dataMap[sobjectName]);
 
-        // tslint:disable-next-line:forin
-        for (const dependent in rootObj.childRefs) {
-          // Run query using ids from rootObj in where clause for dependent
-          const childSObject = rootObj.childRefs[dependent];
-          if (rootObj.name !== childSObject.childSObject) {
-            const dependentSoql = await this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field);
-            const dataMapIndex = childSObject.childSObject; // + '.' + childSObject.field;
-            let dependentData = await connection.query(dependentSoql);
-            dependentData = this.removeNulls(dependentData);
-            if (dependentData.totalSize > 0) {
-              this.addToDatamap(dataMapIndex, dependentData);
-              // this.dataMap[dataMapIndex] = dependentData;
-            }
+                // tslint:disable-next-line:forin
+                for (const dependent in rootObj.childRefs) {
+                  // Run query using ids from rootObj in where clause for dependent
+                  const childSObject = rootObj.childRefs[dependent];
+                  if (rootObj.name !== childSObject.childSObject && this.shouldQueryThisField(childSObject)) {
+                    connection.query(this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field)).then(data => {
+                      this.removeNulls(data);
+                      if (data.totalSize > 0) {
+                        this.addToDatamap(childSObject.childSObject, data);
+                      }
+                    });
+                  }
+                }
+              } else {
+                delete this.describeMap[sobjectName];
+                delete this.relMap[sobjectName];
+              }
+            });
+          } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
+            // Run query and add to map
+            await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+              rootData = this.removeNulls(rootData);
+              if (rootData.totalSize > 0) {
+                this.dataMap[sobjectName] = rootData;
+                this.pullIds(this.dataMap[sobjectName]);
+              }
+            });
+          } else {
+            delete this.describeMap[sobjectName];
+            delete this.relMap[sobjectName];
           }
         }
-      } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
-        const soql = await this.generateSimpleQuery(ind);
-        let rootData = await connection.query(soql);
-        rootData = this.removeNulls(rootData);
+      }
+    }
+  }
 
-        if (rootData.totalSize > 0) {
-          this.dataMap[ind] = rootData;
+  private async runCountQueries(connection: Connection) {
+    for (const key in this.relMap) {
+      if (this.relMap.hasOwnProperty(key)) {
+        if (this._validRootObj(this.relMap[key])) {
+          // Run query and store in qrMap
+          await connection.query(this.generateSimpleCountQuery(key)).then(rootData => {
+            if (rootData.totalSize === 0) {
+              delete this.describeMap[key];
+              delete this.relMap[key];
+            }
+          });
+        } else {
+          delete this.describeMap[key];
+          delete this.relMap[key];
         }
-
-        this.pullIds(this.dataMap[ind]);
       }
     }
   }
@@ -335,7 +458,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     if (this.dataMap.hasOwnProperty(dataMapIndex)) {
       // remove duplicates and add to map
       const newRecords = this.removeDuplicates(this.dataMap[dataMapIndex], dependentData);
-      this.dataMap[dataMapIndex].records.push(newRecords.records);
+      this.dataMap[dataMapIndex].records.concat(newRecords.records);
     } else {
       this.dataMap[dataMapIndex] = dependentData;
     }
@@ -345,7 +468,8 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     mapData.records.forEach(element => {
       const foundIndex = _.findIndex(newData.records, ['Id', element['Id']]);
       if ( foundIndex !== -1) {
-        delete newData.records[foundIndex];
+        newData.records.splice(foundIndex, 1);
+        newData.totalSize = newData.totalSize - 1;
       }
     });
     return newData;
@@ -361,24 +485,23 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return ids;
   }
 
-  private async generateSimpleQuery(objName) {
-    const soql = await this.generateQuery(objName);
-    return soql + ' Limit ' + this.flags.maxrecords;
+  private generateSimpleCountQuery(objName) {
+    return 'Select Count() From ' + objName;
   }
 
-  private async generateDependentQuery(objName: string, ids: string[], filterField: string) {
-    const soql: string = await this.generateQuery(objName);
-    return soql + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit ' + this.flags.maxrecords;
+  private generateSimpleQuery(objName) {
+    return this.generateQuery(objName) + ' Limit ' + this.flags.maxrecords;
   }
 
-  private async generateQuery(objName) {
-    // tslint:disable-next-line:forin
-    const objDescribe = this.describeMap[objName];
-    const fields = objDescribe.fields;
+  private generateDependentQuery(objName: string, ids: string[], filterField: string) {
+    return this.generateQuery(objName) + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit ' + this.flags.maxrecords;
+  }
+
+  private generateQuery(objName) {
     const selectClause = [];
     // tslint:disable-next-line:forin
-    for (const fieldIndex in fields) {
-      const field = fields[fieldIndex];
+    for (const fieldIndex in this.describeMap[objName].fields) {
+      const field = this.describeMap[objName].fields[fieldIndex];
       if (field.createable) {
         selectClause.push(field.name);
       }
@@ -388,40 +511,38 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return 'Select ' + selectClause.join(',') + ' From ' + objName;
   }
 
-  private getObjectChildRelationships(objects): RelationshipMap {
+  private getObjectChildRelationships(): RelationshipMap {
     const relationshipMap = {};
+    // Iterate over the describeMap to visit each object describe
     for (const value in this.describeMap) {
       if (!isUndefined(value)) {
-        let index = 1;
-        for (const child of this.describeMap[value].children) {
-          if (objects.indexOf(child.childSObject) !== -1) {
+        let index = 0;
+        for (const child of this.describeMap[value].childRelationships) {
+          if (!isUndefined(this.describeMap[child.childSObject]) && this.describeMap[child.childSObject].layoutable) {
             _.set(relationshipMap, [value, 'childRefs', index], child);
             index++;
           }
         }
-        if (relationshipMap[value]) {
-          _.remove(relationshipMap[value]['childRefs'], n => {
-            return _.isUndefined(n);
-          });
-        }
         if (!isUndefined(relationshipMap[value])) {
           _.set(relationshipMap, [value, 'name'], value);
+        } else {
+          _.set(relationshipMap, [value, 'childRefs'], []);
         }
       }
     }
     return relationshipMap as RelationshipMap;
   }
 
-  private getObjectParentRelationships(objects): RelationshipMap {
+  private getObjectParentRelationships(): RelationshipMap {
     const relationshipMap = {};
     // tslint:disable-next-line:no-any
-    _.map(this.describeMap, (value: any, key, collection) => {
+    _.map(this.describeMap, (value: any, key) => {
       let relIndex = 0;
-      _.forEach(value.fields, (field, index, fields) => {
+      _.forEach(value.fields, field => {
         if (field.type === 'reference') {
           // tslint:disable-next-line:prefer-for-of
           for (let i = 0; i < field.referenceTo.length; i++ ) {
-            if (_.indexOf(objects, field.referenceTo[i]) !== -1) {
+            if (!isUndefined(this.describeMap[field.referenceTo[i]])) {
               _.set(relationshipMap, [key, 'parentRefs', relIndex++], field);
             }
           }
@@ -439,32 +560,80 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return relationshipMap as RelationshipMap;
   }
 
+  private async getSobjectDescribe(objName: string, conn): Promise<IDescribeSObjectResult> {
+    let describeResult: IDescribeSObjectResult;
+    if (fs.existsSync('./describes/' + objName + '.json')) {
+      describeResult = JSON.parse(fs.readFileSync('./describes/' + objName + '.json').toString());
+    } else {
+      describeResult = await conn.describe(objName);
+    }
+    return describeResult;
+  }
+
+  private saveDescribeMap() {
+    if (!fs.existsSync('./describes')) {
+      fs.mkdirSync('./describes');
+    }
+    for (const key in this.describeMap) {
+      if (this.describeMap.hasOwnProperty(key)) {
+        if (this.describeMap[key].layoutable) {
+          fs.writeFileSync('./describes/' + key + '.json', JSON.stringify(this.describeMap[key], null, 4));
+        }
+      }
+    }
+  }
+
   private async makeDescribeMap(objects, conn) {
     const describeMap = {}; // Objectname describe result map
     for (const object of this.objects) {
-      let describeResult: IDescribeSObjectResult;
-      if (!fs.existsSync('./describes')) {
-        fs.mkdirSync('./describes');
-      }
-      if (fs.existsSync('./describes/' + object + '.json')) {
-        describeResult = JSON.parse(fs.readFileSync('./describes/' + object + '.json').toString());
-      } else {
-        describeResult = await conn.describe(object);
-        fs.writeFileSync('./describes/' + object + '.json', JSON.stringify(describeResult, null, 4));
-      }
-      describeMap[object] = {
-        fields: describeResult.fields,
-        children: describeResult['childRelationships']
-      };
+
+      await this.getSobjectDescribe(object, conn).then(async describeResult => {
+        if (describeResult.layoutable) {
+          describeMap[object] = {
+            fields: describeResult.fields,
+            childRelationships: describeResult['childRelationships'],
+            layoutable: describeResult.layoutable
+          };
+
+          if (this.flags.spiderreferences) {
+            await this.spiderReferences(describeMap[object], describeMap, conn, object);
+          }
+        }
+      });
     }
     return describeMap;
   }
 
-  private makeRelationshipMap(objects) {
+  private async spiderReferences(describeResult: DescribeSObjectResult, describeMap, conn, object) {
+    // tslint:disable-next-line:prefer-for-of
+    for (let i = 0; i < describeResult.fields.length; i++) {
+      const field: Field = describeResult.fields[i];
+      if (field.type === 'reference' && !field.referenceTo.includes('User')) {
+        // tslint:disable-next-line:prefer-for-of
+        for (let index = 0; index < field.referenceTo.length; index++) {
+          const objectReference = field.referenceTo[index];
+          if (isUndefined(describeMap[objectReference])) {
+            await this.getSobjectDescribe(objectReference, conn).then(describeSObjectResult => {
+              if (describeSObjectResult.layoutable) {
+                // this.objects.push(objectReference);
+                describeMap[objectReference] = {
+                  fields: describeSObjectResult.fields,
+                  childRelationships: describeSObjectResult['childRelationships'],
+                  layoutable: describeSObjectResult.layoutable
+                };
+              }
+            });
+          }
+        }
+      }
+    }
+  }
+
+  private makeRelationshipMap() {
     const relationshipMap: RelationshipMap = {} as RelationshipMap;
     _.merge(relationshipMap,
-            this.getObjectChildRelationships(objects),
-            this.getObjectParentRelationships(objects));
+            this.getObjectChildRelationships(),
+            this.getObjectParentRelationships());
 
     return relationshipMap;
   }

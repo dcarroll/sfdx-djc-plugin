@@ -1,0 +1,71 @@
+{
+    "TicketableEvent__c": { 
+        "weight": 10,
+        "refs": {
+            "EventInstance__c": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    },
+    "EventInstance__c": {
+        "weight": 20, 
+        "refs": {
+            "TicketAllocation__c": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    },
+    "Account": {
+        "weight": 30, 
+        "refs": {
+            "Task": {
+                "resolveRefs": true
+            },
+            "Contact": {
+                "resolveRefs": true
+            },
+            "Lead": {
+                "resolveRefs": true
+            },
+            "Case": {
+                "resolveRefs": true
+            },
+            "Opportunity": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    },
+    "Contact": {
+        "weight": 40,
+        "refs": {
+            "Lead": {
+                "resolveRefs": true
+            },
+            "Case": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    },
+    "Opportunity": {
+        "weight": 50,
+        "refs": {
+            "Lead": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    },
+    "Campaign": {
+        "weight": 60,
+        "refs": {
+            "Opportunity": {
+                "resolveRefs": true
+            }
+        },
+        "saveRefs": true
+    }
+}

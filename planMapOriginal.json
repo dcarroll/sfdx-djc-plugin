@@ -1,0 +1,28 @@
+{
+    "TicketableEvent__c": [
+        "EventInstance__c"
+    ],
+    "EventInstance__c": [
+        "TicketAllocation__c"
+    ],
+    "Contact": [
+        "Lead",
+        "Case"
+    ],
+    "Account": [
+        "Task",
+        "Contact",
+        "Lead",
+        "Case",
+        "Opportunity"
+    ],
+    "Opportunity": [
+        "Lead"
+    ],
+    "Campaign": [
+        "Opportunity"
+    ],
+    "thoughts": "Iterate over this list of references.  If the root exists in another reference.",
+    "thoughts1": "then we need to ask if the root is before the other reference"
+}
+

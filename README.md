@@ -35,7 +35,7 @@ $ npm install -g sfdx-djc-plugin
 $ sfdx-djc-plugin COMMAND
 running command...
 $ sfdx-djc-plugin (-v|--version|version)
-sfdx-djc-plugin/0.0.2 darwin-x64 node-v9.3.0
+sfdx-djc-plugin/0.0.3 darwin-x64 node-v8.9.4
 $ sfdx-djc-plugin --help [COMMAND]
 USAGE
   $ sfdx-djc-plugin COMMAND
@@ -54,12 +54,20 @@ USAGE
   $ sfdx-djc-plugin djc:data:export
 
 OPTIONS
+  -e, --enforcereferences                         If present, missing child reference cause the record to be deleted,
+                                                  otherwise, just the reference field is removed
+
   -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
 
   -n, --planname=planname                         [default: new-plan] name of the data plan to produce, deflaults to
                                                   "new-plan"
 
   -o, --objects=objects                           (required) Comma separated list of objects to fetch
+
+  -p, --spiderreferences                          Include refereced SObjects determined by schema examination and
+                                                  existing data
+
+  -s, --savedescribes                             Save describe results (for diagnostics)
 
   -t, --targetdir=targetdir                       (required) target directoy to place results in
 
@@ -76,5 +84,5 @@ EXAMPLE
   $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
 ```
 
-_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.2/src/commands/djc/data/export.ts)_
+_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.3/src/commands/djc/data/export.ts)_
 <!-- commandsstop -->
