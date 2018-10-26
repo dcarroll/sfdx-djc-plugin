@@ -221,7 +221,6 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
         }
       }
     }
-    this.ux.log(JSON.stringify(listMap, null, 4));
     return await this.getDataPlanOrder(listMap);
   }
 
@@ -606,7 +605,6 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   }
 
   private async spiderReferences(describeResult: DescribeSObjectResult, describeMap, conn, object) {
-    this.ux.log('Object: ' + object);
     // tslint:disable-next-line:prefer-for-of
     for (let i = 0; i < describeResult.fields.length; i++) {
       const field: Field = describeResult.fields[i];
