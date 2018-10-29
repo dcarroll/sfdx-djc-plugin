@@ -1,0 +1,9 @@
+Case 1: Object has childRefs
+    Need to query the referenced child to get the ids for the parent that will allow
+    us to get the right parents when needed.
+
+    Query for children 'Select {$childRef.field} From {$childRef.childSobject} limit 10'
+    
+    Put the returned ids into an array {$ids}
+
+    We can now query the parent using 'Select * From {$Parent} Where Id in {$ids}'

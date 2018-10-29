@@ -134,7 +134,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
 
     this.ux.startSpinner('Running queries for ' + _.keys(this.relMap).length + ' objects...');
     this.planEntries = await this.createDataPlan();
-    await this.runQueries(this.org.getConnection());
+    await this.runQueriesV2(this.org.getConnection());
     this.ux.stopSpinner('Saving data...');
 
     await this.saveData();
@@ -381,7 +381,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     return false;
   }
 
-  private async runQueries(connection: Connection) {
+  /* private async runQueries(connection: Connection) {
     for (const sobjectName in this.relMap) {
       if (this.relMap.hasOwnProperty(sobjectName)) {
         if (_.findIndex(this.planEntries, [ 'sobject', sobjectName]) === -1) {
@@ -417,6 +417,82 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
                 delete this.relMap[sobjectName];
               }
             });
+          } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
+            // Run query and add to map
+            await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+              rootData = this.removeNulls(rootData);
+              if (rootData.totalSize > 0) {
+                this.dataMap[sobjectName] = rootData;
+                this.pullIds(this.dataMap[sobjectName]);
+              }
+            });
+          } else {
+            delete this.describeMap[sobjectName];
+            delete this.relMap[sobjectName];
+          }
+        }
+      }
+    }
+  } */
+
+  private async runQueriesV2(connection: Connection) {
+    for (const sobjectName in this.relMap) {
+      if (this.relMap.hasOwnProperty(sobjectName)) {
+        if (_.findIndex(this.planEntries, [ 'sobject', sobjectName]) === -1) {
+        // if (!_.has(this.planEntries, key)) {
+          delete this.relMap[sobjectName];
+          delete this.describeMap[sobjectName];
+        } else {
+          const rootObj = this.relMap[sobjectName];
+          let rootObjData: QueryResult<{}>;
+          if (this._validRootObj(rootObj)) {
+            // Handle the child queries first
+            // tslint:disable-next-line:prefer-for-of
+            for (let i = 0; i < rootObj.childRefs.length; i++) {
+            // await rootObj.childRefs.forEach(async childRef => {
+              const childRef = rootObj.childRefs[i];
+              const soql = 'Select ' + childRef.field +  ' From ' + childRef.childSObject + ' Where ' + childRef.field + ' != null Limit 10';
+              const parentIdData = await connection.query(soql); // .then(async rootData => {
+              if (parentIdData.totalSize > 0) {
+                // rootData = this.removeNulls(rootData);
+                // PUll out ids.
+                const ids = this.pullIdsV2(parentIdData, childRef.field);
+                // Query the rootObj using the ids from above to filter
+                const soql2 = this.generateQuery(sobjectName) + ' Where Id IN (\'' + ids.join('\',\'') + '\')';
+                let childData = await connection.query(soql2);
+                childData = this.removeNulls(childData);
+                if (isUndefined(rootObjData)) {
+                  rootObjData = childData;
+                } else {
+                  rootObjData.totalSize += childData.totalSize;
+                  rootObjData.records.concat(childData.records);
+                }
+              }
+            }
+
+            if (!isUndefined(rootObjData)) {
+              this.dataMap[sobjectName] = rootObjData;
+            }
+
+            // Run query and store in qrMap
+            let rootData = await connection.query(this.generateSimpleQuery(sobjectName));
+            // await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+            rootData = this.removeNulls(rootData);
+            if (rootData.totalSize > 0) {
+              if (isUndefined(rootObjData)) {
+                rootObjData = rootData;
+              } else {
+                rootData = this.removeDuplicates(rootObjData, rootData);
+                rootObjData.totalSize += rootData.totalSize;
+                rootObjData.records = rootObjData.records.concat(rootData.records);
+              }
+              this.dataMap[sobjectName] = rootObjData;
+              this.pullIds(this.dataMap[sobjectName]);
+            } else {
+              delete this.describeMap[sobjectName];
+              delete this.relMap[sobjectName];
+            }
+            // });
           } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
             // Run query and add to map
             await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
@@ -481,6 +557,16 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     for (const ind in data.records) {
       ids.push(data.records[ind].Id);
       this.globalIds.push(data.records[ind].Id);
+    }
+    return ids;
+  }
+
+  private pullIdsV2(data: QueryResult<{}>, idField: string) {
+    const ids: string[] = [];
+    // tslint:disable-next-line:forin
+    for (const ind in data.records) {
+      ids.push(data.records[ind][idField]);
+      this.globalIds.push(data.records[ind][idField]);
     }
     return ids;
   }
