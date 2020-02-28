@@ -82,13 +82,14 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
     objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
-    planname: flags.string({ default: 'new-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
+    planname: flags.string({ default: 'new-data-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
     targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
     maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'}),
     savedescribes: flags.boolean({ char: 's', description: 'Save describe results (for diagnostics)'}),
     spiderreferences: flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
     enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'}),
-    preserveObjectOrder: flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'})
+    preserveobjectorder: flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'}),
+    tohoom: flags.boolean({ char: 'h', description: 'Special Tohoom processing to handle self referential relationship'})
   };
 
   // Comment this out if your command does not require an org username
@@ -102,7 +103,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
 
   private describeMap = {}; // Objectname describe result map
   private relMap: RelationshipMap; // map of object name and childRelationships and/or parents
-  private objects: string[];
+  private objects: Array<string>;
   private dataMap = {};
   private planEntries: PlanEntry[];
   private globalIds: string[] = [] as string[];
@@ -147,6 +148,16 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     // return this.planEntries;
   }
 
+  private reorderPlan() {
+    const newOrder: Array<PlanEntry> = new Array<PlanEntry>();
+    //var pe: PlanEntry[];
+    _.forEach(this.objects, (data, ind) => {
+      const e = this.planEntries.find(element => element.sobject === data)
+      newOrder.push(e)
+    });
+    this.planEntries = newOrder;
+  }
+
   // Save data iterates over the in-memory data sets.  For each data set,
   // each record is examined and the referenceId returned from the query
   // is set to just the id, rather than a url. After the data sets have been
@@ -177,7 +188,10 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
       objName = objName.split('.')[0];
       fs.writeFileSync(path.join(this.flags.targetdir, objName + '.json'), JSON.stringify(this.dataMap[objName], null, 4));
     }
-    fs.writeFileSync(path.join(this.flags.targetdir, 'new-data-plan.json'), JSON.stringify(this.planEntries, null, 4));
+    if (this.flags.preserveobjectorder) {
+      this.reorderPlan();
+    }
+    fs.writeFileSync(path.join(this.flags.targetdir, this.flags.planname + '.json'), JSON.stringify(this.planEntries, null, 4));
   }
 
   private pruneBadReferences() {

@@ -44,6 +44,7 @@ USAGE
 <!-- usagestop -->
 <!-- commands -->
 * [`sfdx-djc-plugin djc:data:export`](#sfdx-djc-plugin-djcdataexport)
+* [`sfdx-djc-plugin djc:data:tohoom`](#sfdx-djc-plugin-djcdatatohoom)
 
 ## `sfdx-djc-plugin djc:data:export`
 
@@ -54,13 +55,18 @@ USAGE
   $ sfdx-djc-plugin djc:data:export
 
 OPTIONS
+  -b, --preserveobjectorder                       If present, uses the order of the objects from the command to
+                                                  determine plan order
+
   -e, --enforcereferences                         If present, missing child reference cause the record to be deleted,
                                                   otherwise, just the reference field is removed
 
+  -h, --tohoom                                    Special Tohoom processing to handle self referential relationship
+
   -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
 
-  -n, --planname=planname                         [default: new-plan] name of the data plan to produce, deflaults to
-                                                  "new-plan"
+  -n, --planname=planname                         [default: new-data-plan] name of the data plan to produce, deflaults
+                                                  to "new-plan"
 
   -o, --objects=objects                           (required) Comma separated list of objects to fetch
 
@@ -85,4 +91,32 @@ EXAMPLE
 ```
 
 _See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/data/export.ts)_
+
+## `sfdx-djc-plugin djc:data:tohoom`
+
+This command is specific to post processing the Tohoom dataset for handling the self referential Hoom_Team_Member object
+
+```
+USAGE
+  $ sfdx-djc-plugin djc:data:tohoom
+
+OPTIONS
+  -n, --planname=planname                         [default: new-data-plan] name of the data plan to modify, deflaults to
+                                                  "new-data-plan"
+
+  -t, --targetdir=targetdir                       (required) target directoy where generated data is
+
+  -u, --targetusername=targetusername             username or alias for the target org; overrides default target org
+
+  --apiversion=apiversion                         override the api version used for api requests made by this command
+
+  --json                                          format output as json
+
+  --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:data:tohoom -t newdata -n my-testplan
+```
+
+_See code: [src/commands/djc/data/tohoom.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/data/tohoom.ts)_
 <!-- commandsstop -->
