@@ -7,6 +7,33 @@
         {
             "type": "node",
             "request": "attach",
+            "name": "Attach by Process ID",
+            "processId": "${command:PickProcess}",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/bin/run",
+            "args": [
+                "djc:data:export",
+                "-m",
+                "100",
+                "-o",
+                "Account,Contact,Hoom__c,Target__c,Hoom_Team_Member__c,Influencer__c,Collaboration__c,HUB__c,Hub_Hoom__c",
+                "-t",
+                "data"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "attach",
             "name": "Attach to Remote",
             "address": "127.0.0.1",
             "port": 9229,

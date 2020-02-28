@@ -87,7 +87,8 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'}),
     savedescribes: flags.boolean({ char: 's', description: 'Save describe results (for diagnostics)'}),
     spiderreferences: flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
-    enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'})
+    enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'}),
+    preserveObjectOrder: flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'})
   };
 
   // Comment this out if your command does not require an org username
@@ -106,7 +107,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   private planEntries: PlanEntry[];
   private globalIds: string[] = [] as string[];
 
-  // tslint:disable-next-line:no-any
+  // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {
     // We take in a set of object that we want to generate data for.  We will
     // examine the relationships of the included objects to one another to datermine
@@ -201,31 +202,32 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     });
   }
 
-  private async listGen(): Promise<string[]> {
+  private async listGen(): Promise<Array<string>> {
     const listMap = {};
     for (const key in this.relMap) {
-      if (this.relMap.hasOwnProperty(key)) {
-        const obj = this.relMap[key];
-        // tslint:disable-next-line:forin
-        for (const ind in obj.parentRefs) {
-          const refTo = obj.parentRefs[ind].referenceTo;
-          // tslint:disable-next-line:prefer-for-of
-          for (let i = 0; i < refTo.length; i++) {
-            if (refTo[i] !== key && !isUndefined(this.relMap[refTo])) {
-              if (isUndefined(listMap[refTo])) {
-                listMap[refTo[i]] = [];
-              }
-              listMap[refTo[i]].push(key);
+      const obj = this.relMap[key];
+      // tslint:disable-next-line:forin
+      for (const ind in obj.parentRefs) {
+        const refTo = obj.parentRefs[ind].referenceTo;
+        // tslint:disable-next-line:prefer-for-of
+        for (let i = 0; i < refTo.length; i++) {
+          const refToValue = refTo[i];
+          //if (refToValue !== key && !isUndefined(this.relMap[refToValue])) {
+            if (isUndefined(listMap[refTo[i]])) {
+              listMap[refToValue] = [];
+            }
+            if (!listMap[refToValue].includes(key)) {
+              listMap[refToValue].push(key);
             }
           }
-        }
+        //}
       }
     }
     return await this.getDataPlanOrder(listMap);
   }
 
-  private async getDataPlanOrder(listMap): Promise<string[]> {
-    const tempList: string[] = [];
+  private async getDataPlanOrder(listMap): Promise<Array<string>> {
+    const tempList: Array<string>  = [];
     // tslint:disable-next-line:no-any
     // const listMap: any = await core.json.readJson('./planMapOriginal.json');
     // tslint:disable-next-line:forin
@@ -235,8 +237,11 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
           tempList.push(child);
         }
       });
+      // Determine if this object is referenced by any other objext in our list
       const isObjRefResult = this.isObjectReferenced(topLevelObject, listMap);
       if (isObjRefResult.result) {
+        // This object is referenced by another object so we need to insert it in the right place
+        // What is the right place??? Not sure
         isObjRefResult.refrerencingObject.forEach(refObj => {
           if (!tempList.includes(refObj)) {
             // See if topLevelObject is in the list, if it is, we should create the refObj
@@ -249,10 +254,14 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
             }
           }
           const ind = tempList.indexOf(topLevelObject);
-          tempList.splice(tempList.indexOf(refObj) + 1, 0, topLevelObject);
-          if (ind !== -1) {
-            tempList.splice(ind + 1, 1);
+          // Add the top level just after the refObj if it's not already in the list
+          if (ind === -1) {
+            tempList.splice(tempList.indexOf(refObj) + 1, 0, topLevelObject);
           }
+          // If the toplevel was already in the array, remove the orginal one indexed by 'ind'
+          //if (ind !== -1) {
+          //  tempList.splice(ind + 1, 1);
+          //}
         });
       } else {
         if (!tempList.includes(topLevelObject)) {
@@ -270,6 +279,9 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
       if (topLevelObject === objectName) {
         // Skip, this is the thing itself
       } else {
+        // Loop over the the children of the object, if the child is the object we are checking
+        // to see if it referenced, then we create a result object indicating that is in fact
+        // reference by another object also make note of the object that references it
         listMap[topLevelObject].forEach(childElement => {
           if (childElement === objectName) {
             result.result = true;
@@ -282,7 +294,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   }
 
   private async createDataPlan(): Promise<PlanEntry[]> {
-    const listPlan: string[] = await this.listGen();
+    const listPlan: Array<string> = await this.listGen();
     const planEntries: PlanEntry[] = [] as PlanEntry[];
 
     listPlan.forEach(key => {

@@ -35,7 +35,7 @@ $ npm install -g sfdx-djc-plugin
 $ sfdx-djc-plugin COMMAND
 running command...
 $ sfdx-djc-plugin (-v|--version|version)
-sfdx-djc-plugin/0.0.31 darwin-x64 node-v9.3.0
+sfdx-djc-plugin/0.0.31 darwin-x64 node-v10.15.1
 $ sfdx-djc-plugin --help [COMMAND]
 USAGE
   $ sfdx-djc-plugin COMMAND
