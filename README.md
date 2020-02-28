@@ -35,7 +35,7 @@ $ npm install -g sfdx-tohoom-plugin
 $ sfdx-tohoom-plugin COMMAND
 running command...
 $ sfdx-tohoom-plugin (-v|--version|version)
-sfdx-tohoom-plugin/0.0.32 darwin-x64 node-v10.15.1
+sfdx-tohoom-plugin/0.0.33 darwin-x64 node-v10.15.1
 $ sfdx-tohoom-plugin --help [COMMAND]
 USAGE
   $ sfdx-tohoom-plugin COMMAND
@@ -44,7 +44,6 @@ USAGE
 <!-- usagestop -->
 <!-- commands -->
 * [`sfdx-tohoom-plugin tohoom:data:export`](#sfdx-tohoom-plugin-tohoomdataexport)
-* [`sfdx-tohoom-plugin tohoom:data:tohoom`](#sfdx-tohoom-plugin-tohoomdatatohoom)
 
 ## `sfdx-tohoom-plugin tohoom:data:export`
 
@@ -89,33 +88,5 @@ EXAMPLE
   $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
 ```
 
-_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.32/src/commands/tohoom/data/export.ts)_
-
-## `sfdx-tohoom-plugin tohoom:data:tohoom`
-
-This command is specific to post processing the Tohoom dataset for handling the self referential Hoom_Team_Member object
-
-```
-USAGE
-  $ sfdx-tohoom-plugin tohoom:data:tohoom
-
-OPTIONS
-  -n, --planname=planname                         [default: new-data-plan] name of the data plan to modify, deflaults to
-                                                  "new-data-plan"
-
-  -t, --targetdir=targetdir                       (required) target directoy where generated data is
-
-  -u, --targetusername=targetusername             username or alias for the target org; overrides default target org
-
-  --apiversion=apiversion                         override the api version used for api requests made by this command
-
-  --json                                          format output as json
-
-  --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
-
-EXAMPLE
-  $ sfdx djc:data:tohoom -t newdata -n my-testplan
-```
-
-_See code: [src/commands/tohoom/data/tohoom.ts](https://github.com/dcarroll/datatree/blob/v0.0.32/src/commands/tohoom/data/tohoom.ts)_
+_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.33/src/commands/tohoom/data/export.ts)_
 <!-- commandsstop -->

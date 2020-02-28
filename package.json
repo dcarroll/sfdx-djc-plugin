@@ -1,7 +1,7 @@
 {
   "name": "sfdx-tohoom-plugin",
   "description": "Testing",
-  "version": "0.0.32",
+  "version": "0.0.33",
   "author": "Dave Carroll @dcarroll",
   "bugs": "https://github.com/dcarroll/datatree/issues",
   "dependencies": {
