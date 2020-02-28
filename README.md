@@ -31,28 +31,28 @@ A plugin for the Salesforce CLI built by Dave Carroll and containing a few of he
 
 <!-- usage -->
 ```sh-session
-$ npm install -g sfdx-djc-plugin
-$ sfdx-djc-plugin COMMAND
+$ npm install -g sfdx-tohoom-plugin
+$ sfdx-tohoom-plugin COMMAND
 running command...
-$ sfdx-djc-plugin (-v|--version|version)
-sfdx-djc-plugin/0.0.31 darwin-x64 node-v10.15.1
-$ sfdx-djc-plugin --help [COMMAND]
+$ sfdx-tohoom-plugin (-v|--version|version)
+sfdx-tohoom-plugin/0.0.32 darwin-x64 node-v10.15.1
+$ sfdx-tohoom-plugin --help [COMMAND]
 USAGE
-  $ sfdx-djc-plugin COMMAND
+  $ sfdx-tohoom-plugin COMMAND
 ...
 ```
 <!-- usagestop -->
 <!-- commands -->
-* [`sfdx-djc-plugin djc:data:export`](#sfdx-djc-plugin-djcdataexport)
-* [`sfdx-djc-plugin djc:data:tohoom`](#sfdx-djc-plugin-djcdatatohoom)
+* [`sfdx-tohoom-plugin tohoom:data:export`](#sfdx-tohoom-plugin-tohoomdataexport)
+* [`sfdx-tohoom-plugin tohoom:data:tohoom`](#sfdx-tohoom-plugin-tohoomdatatohoom)
 
-## `sfdx-djc-plugin djc:data:export`
+## `sfdx-tohoom-plugin tohoom:data:export`
 
-This is a proof of concept of a entirely differenct way to extract data from an org to use as developer data for a scratch org.  Just supply a list of SObject, standard or custom, and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
+Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
 
 ```
 USAGE
-  $ sfdx-djc-plugin djc:data:export
+  $ sfdx-tohoom-plugin tohoom:data:export
 
 OPTIONS
   -b, --preserveobjectorder                       If present, uses the order of the objects from the command to
@@ -61,7 +61,7 @@ OPTIONS
   -e, --enforcereferences                         If present, missing child reference cause the record to be deleted,
                                                   otherwise, just the reference field is removed
 
-  -h, --tohoom                                    Special Tohoom processing to handle self referential relationship
+  -k, --tohoom                                    Special Tohoom processing to handle self referential relationship
 
   -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
 
@@ -86,19 +86,18 @@ OPTIONS
   --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
 
 EXAMPLE
-  $ sfdx djc:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
-  $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
+  $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
 ```
 
-_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/data/export.ts)_
+_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.32/src/commands/tohoom/data/export.ts)_
 
-## `sfdx-djc-plugin djc:data:tohoom`
+## `sfdx-tohoom-plugin tohoom:data:tohoom`
 
 This command is specific to post processing the Tohoom dataset for handling the self referential Hoom_Team_Member object
 
 ```
 USAGE
-  $ sfdx-djc-plugin djc:data:tohoom
+  $ sfdx-tohoom-plugin tohoom:data:tohoom
 
 OPTIONS
   -n, --planname=planname                         [default: new-data-plan] name of the data plan to modify, deflaults to
@@ -118,5 +117,5 @@ EXAMPLE
   $ sfdx djc:data:tohoom -t newdata -n my-testplan
 ```
 
-_See code: [src/commands/djc/data/tohoom.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/data/tohoom.ts)_
+_See code: [src/commands/tohoom/data/tohoom.ts](https://github.com/dcarroll/datatree/blob/v0.0.32/src/commands/tohoom/data/tohoom.ts)_
 <!-- commandsstop -->
