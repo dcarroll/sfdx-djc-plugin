@@ -13,6 +13,7 @@ import { isString, isUndefined } from 'util';
 
 import { Connection } from '@salesforce/core';
 import { DescribeSObjectResult, QueryResult } from 'jsforce';
+import TohoomExtension from '../../../tohoom';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
@@ -70,11 +71,10 @@ interface PlanEntry {
 }
 
 export default class Export extends SfdxCommand {
-  public static description = 'This is a proof of concept of a entirely differenct way to extract data from an org to use as developer data for a scratch org.  Just supply a list of SObject, standard or custom, and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command'; // messages.getMessage('commandDescription');
+  public static description = `Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command`; // messages.getMessage('commandDescription');
 
   public static examples = [
-    `$ sfdx djc:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
-$ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
+    `$ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
   `
   ];
 
@@ -89,7 +89,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     spiderreferences: flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
     enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'}),
     preserveobjectorder: flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'}),
-    tohoom: flags.boolean({ char: 'h', description: 'Special Tohoom processing to handle self referential relationship'})
+    tohoom: flags.boolean({ char: 'k', description: 'Special Tohoom processing to handle self referential relationship'})
   };
 
   // Comment this out if your command does not require an org username
@@ -99,7 +99,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   protected static supportsDevhubUsername = false;
 
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
-  protected static requiresProject = false;
+  protected static requiresProject = true;
 
   private describeMap = {}; // Objectname describe result map
   private relMap: RelationshipMap; // map of object name and childRelationships and/or parents
@@ -109,7 +109,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
   private globalIds: string[] = [] as string[];
 
   // tslint:disable-next-line:no-any 
-  public async run(): Promise<any> {
+  public async run(): Promise<any> {  
     // We take in a set of object that we want to generate data for.  We will
     // examine the relationships of the included objects to one another to datermine
     // what to export and in what order.
@@ -130,7 +130,7 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     //    childRefs: ChildRelationship[];
     // }
     this.relMap = this.makeRelationshipMap();
-
+    this.error
     // Run the queries and put the data into individual json files.
     await this.runCountQueries(conn);
 
@@ -144,8 +144,13 @@ $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Ob
     if (process.env.NODE_OPTIONS === '--inspect-brk' || this.flags.savedescribes ) {
       this.saveDescribeMap();
     }
-    this.ux.log('Finished exporting data and plan.');
     // return this.planEntries;
+    if (this.flags.tohoom) {
+      let ext = new TohoomExtension();
+      ext.run(this.flags.planname, this.flags.targetdir, this.ux, this);
+    }
+    this.ux.log('Finished exporting data and plan.');
+
   }
 
   private reorderPlan() {

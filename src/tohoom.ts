@@ -1,20 +1,9 @@
-import * as _ from 'lodash';
-
 import { core, SfdxCommand } from '@salesforce/command';
 
 import { flags } from '@oclif/command';
-import { join } from 'path';
 
 import * as fs from 'fs';
-import * as fsExtra from 'fs-extra';
 import * as path from 'path';
-
-import { isString, isUndefined } from 'util';
-
-import { Connection } from '@salesforce/core';
-import { DescribeSObjectResult, QueryResult } from 'jsforce';
-
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 
 interface PlanEntry {
   sobject: string;
@@ -42,54 +31,32 @@ interface TeamMemberDataFile {
   records: Array<TeamMember>;
 }
 
-export default class Export extends SfdxCommand {
+export default class TohoomExtension {
   public static description = 'This command is specific to post processing the Tohoom dataset for handling the self referential Hoom_Team_Member object';
-
-  public static examples = [
-    `$ sfdx djc:data:tohoom -t newdata -n my-testplan
-  `
-  ];
-
-  protected static flagsConfig = {
-    planname: flags.string({ default: 'new-data-plan', description: 'name of the data plan to modify, deflaults to "new-data-plan"', char: 'n'}),
-    targetdir: flags.string({ required: true, char: 't', description: 'target directoy where generated data is'}),
-  };
-
-  // Comment this out if your command does not require an org username
-  protected static requiresUsername = true;
-
-  // Comment this out if your command does not support a hub org username
-  protected static supportsDevhubUsername = false;
-
-  // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
-  protected static requiresProject = true;
 
   private planname: string; 
   private targetdir: string;
+  private cmd: SfdxCommand;
 
-  // tslint:disable-next-line:no-any 
-  public async run(): Promise<any> {
-    // We take in a set of object that we want to generate data for.  We will
-    // examine the relationships of the included objects to one another to datermine
-    // what to export and in what order.
-    this.planname = this.flags.planname;
-    this.targetdir = this.flags.targetdir;
+  public async run(planName: string, targetDir: string, ux: core.UX, cmd: SfdxCommand): Promise<any> {
 
-    this.ux.startSpinner(`Re-jiggering the ${this.planname} data plan found in the ${this.targetdir} direcotry...`);
+    this.planname = planName;
+    this.targetdir = targetDir;
+    this.cmd = cmd;
+
+    ux.startSpinner(`Re-jiggering the ${this.planname} data plan found in the ${this.targetdir} direcotry...`);
     await this.addSeedFileToPlan();
     await this.copyHoomTMtoSeedFile();
-    this.ux.stopSpinner('');
+    ux.stopSpinner('');
 
-    // await this.saveData();
-
-    this.ux.log('Finished modifying plan for Tohoom data.');
+    ux.log('Finished modifying plan for Tohoom data.');
   }
 
   private async addSeedFileToPlan() {
     const pathToPlan = path.join(this.targetdir, this.planname + '.json');
     // Read the file into a json structure
     if (!fs.existsSync(pathToPlan)) {
-      this.error(`Could not find the data plan file ${pathToPlan}`);
+      this.cmd.error(`Could not find the data plan file ${pathToPlan}`);
     } else {
       const plandata: Buffer = fs.readFileSync(pathToPlan);
       const planarray: Array<PlanEntry> = JSON.parse(plandata.toString());
@@ -127,3 +94,4 @@ export default class Export extends SfdxCommand {
     fs.writeFileSync(pathToSeedData, JSON.stringify(dataFile, null, 4));
   }
 }
+

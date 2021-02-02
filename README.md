@@ -19,15 +19,15 @@ A plugin for the Salesforce CLI built by Dave Carroll and containing a few of he
 
 1. Install the SDFX CLI.
 
-2. Clone the repository: `git clone git@github.com:wadewegner/sfdx-waw-plugin.git`
+2. Clone the repository: `git clone git@github.com:wadewegner/sfdx-djc-plugin.git`
 
-3. Install npm modules: `npm install`
+3. Install npm modules: `yarn`
 
 4. Link the plugin: `sfdx plugins:link .`
 
 ### Install as plugin
 
-1. Install plugin: `sfdx plugins:install sfdx-waw-plugin`
+1. Install plugin: `sfdx plugins:install sfdx-tohoom-plugin`
 
 <!-- usage -->
 ```sh-session
