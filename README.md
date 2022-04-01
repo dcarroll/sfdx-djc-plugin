@@ -31,27 +31,27 @@ A plugin for the Salesforce CLI built by Dave Carroll and containing a few of he
 
 <!-- usage -->
 ```sh-session
-$ npm install -g sfdx-tohoom-plugin
-$ sfdx-tohoom-plugin COMMAND
+$ npm install -g tohoom-plugin
+$ tohoom-plugin COMMAND
 running command...
-$ sfdx-tohoom-plugin (-v|--version|version)
-sfdx-tohoom-plugin/0.0.33 darwin-x64 node-v10.15.1
-$ sfdx-tohoom-plugin --help [COMMAND]
+$ tohoom-plugin (-v|--version|version)
+tohoom-plugin/0.0.31 darwin-x64 node-v16.13.1
+$ tohoom-plugin --help [COMMAND]
 USAGE
-  $ sfdx-tohoom-plugin COMMAND
+  $ tohoom-plugin COMMAND
 ...
 ```
 <!-- usagestop -->
 <!-- commands -->
-* [`sfdx-tohoom-plugin tohoom:data:export`](#sfdx-tohoom-plugin-tohoomdataexport)
+* [`tohoom-plugin tohoom:data:export`](#tohoom-plugin-tohoomdataexport)
 
-## `sfdx-tohoom-plugin tohoom:data:export`
+## `tohoom-plugin tohoom:data:export`
 
 Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
 
 ```
 USAGE
-  $ sfdx-tohoom-plugin tohoom:data:export
+  $ tohoom-plugin tohoom:data:export
 
 OPTIONS
   -b, --preserveobjectorder                       If present, uses the order of the objects from the command to
@@ -88,5 +88,5 @@ EXAMPLE
   $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
 ```
 
-_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.33/src/commands/tohoom/data/export.ts)_
+_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/tohoom/data/export.ts)_
 <!-- commandsstop -->
