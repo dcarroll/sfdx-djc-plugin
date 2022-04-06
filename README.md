@@ -35,7 +35,7 @@ $ npm install -g tohoom-plugin
 $ tohoom-plugin COMMAND
 running command...
 $ tohoom-plugin (-v|--version|version)
-tohoom-plugin/0.0.31 darwin-x64 node-v16.13.1
+tohoom-plugin/0.0.31 darwin-x64 node-v13.12.0
 $ tohoom-plugin --help [COMMAND]
 USAGE
   $ tohoom-plugin COMMAND
@@ -43,7 +43,77 @@ USAGE
 ```
 <!-- usagestop -->
 <!-- commands -->
+* [`tohoom-plugin djc:cleardata`](#tohoom-plugin-djccleardata)
+* [`tohoom-plugin djc:export`](#tohoom-plugin-djcexport)
+* [`tohoom-plugin djc:import`](#tohoom-plugin-djcimport)
 * [`tohoom-plugin tohoom:data:export`](#tohoom-plugin-tohoomdataexport)
+* [`tohoom-plugin tohoom:data:split`](#tohoom-plugin-tohoomdatasplit)
+
+## `tohoom-plugin djc:cleardata`
+
+Delete data from a scratch org.
+
+```
+USAGE
+  $ tohoom-plugin djc:cleardata
+
+OPTIONS
+  -o, --sobject=sobject                            (required) Object to delete all records for
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:cleardata -o Account
+```
+
+_See code: [src/commands/djc/cleardata.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/cleardata.ts)_
+
+## `tohoom-plugin djc:export`
+
+Import data to an org to use in a scratch org.
+
+```
+USAGE
+  $ tohoom-plugin djc:export
+
+OPTIONS
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:import -p directory
+```
+
+_See code: [src/commands/djc/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/export.ts)_
+
+## `tohoom-plugin djc:import`
+
+Import data to an org to use in a scratch org.
+
+```
+USAGE
+  $ tohoom-plugin djc:import
+
+OPTIONS
+  -i, --findid=findid                              Related record id to find
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  -x, --xfiles                                     Use the limited size files instead of full size files
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:import -p directory
+```
+
+_See code: [src/commands/djc/import.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/import.ts)_
 
 ## `tohoom-plugin tohoom:data:export`
 
@@ -89,4 +159,25 @@ EXAMPLE
 ```
 
 _See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/tohoom/data/export.ts)_
+
+## `tohoom-plugin tohoom:data:split`
+
+Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
+
+```
+USAGE
+  $ tohoom-plugin tohoom:data:split
+
+OPTIONS
+  -n, --planname=planname                          [default: data-plan] name of the data plan to use with split
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
+```
+
+_See code: [src/commands/tohoom/data/split.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/tohoom/data/split.ts)_
 <!-- commandsstop -->

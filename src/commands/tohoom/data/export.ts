@@ -205,7 +205,7 @@ export default class Export extends SfdxCommand {
       const records: Array<{}> = (dataMapItem as any).records;
       _.forEach(records, (record, index)  => {
         _.forOwn(record, (field: string, fieldName: string) => {
-          if (fieldName !== 'attributes' && isString(field)) {
+          if (fieldName !== 'attributes' && typeof field === 'string') {
             if (field.startsWith('@ref')) {
                 if (!this.globalIds.includes(field.split('@ref')[1])) {
                   if (this.flags.enforcereferences) {

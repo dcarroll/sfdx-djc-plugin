@@ -48,7 +48,6 @@ export default class TohoomExtension {
     await this.addSeedFileToPlan();
     await this.copyHoomTMtoSeedFile();
     ux.stopSpinner('');
-
     ux.log('Finished modifying plan for Tohoom data.');
   }
 
