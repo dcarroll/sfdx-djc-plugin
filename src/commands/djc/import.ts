@@ -1,23 +1,10 @@
 import * as _ from 'lodash';
-
-import { core, SfdxCommand } from '@salesforce/command';
-
-import { flags } from '@oclif/command';
+import { flags, SfdxCommand } from '@salesforce/command';
 import { join } from 'path';
-
 import * as fs from 'fs';
-import * as fsExtra from 'fs-extra';
-import * as path from 'path';
+import { Connection, Messages } from '@salesforce/core';
 
-import { isString, isUndefined } from 'util';
-
-import { Connection, SfdxError } from '@salesforce/core';
-import { Interface } from 'mocha';
-import { ExecuteOptions, Query, RecordResult } from 'jsforce';
-import { connect } from 'net';
-import { resolve } from 'url';
-
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
+Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 interface Attributes {
   type: string;
   url: string;
@@ -141,9 +128,6 @@ export default class Import extends SfdxCommand {
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
   protected static requiresProject = true;
 
-  private objects: Array<string>;
-  private dataMap = {};
-  private globalIds: string[] = [] as string[];
   private accounts: Array<Account>;
   private contacts: Array<Contact>;
   private bankproducts: Array<Bank_Product>;

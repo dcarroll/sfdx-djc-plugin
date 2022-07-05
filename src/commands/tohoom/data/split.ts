@@ -1,8 +1,9 @@
-import { core, flags, SfdxCommand } from "@salesforce/command";
+import { flags, SfdxCommand } from "@salesforce/command";
+import { Messages } from "@salesforce/core";
 import { join } from "path";
 import DataApi from "../../../dataApi";
 
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
+Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
 
 export default class Split extends SfdxCommand {
