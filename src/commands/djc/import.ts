@@ -129,7 +129,6 @@ export default class Import extends SfdxCommand {
 
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
-    findid: flags.string({char: 'i', description: 'Related record id to find'}),
     xfiles: flags.boolean({ char: 'x', description: 'Use the limited size files instead of full size files'})
   };
 
@@ -165,33 +164,46 @@ export default class Import extends SfdxCommand {
   public async run(): Promise<any> {
     this.loadDataFiles(this.flags.xfiles);
 
-    this.excludeAccountsWithNoContacts();
-    this.excludeContactsWithoutAnAccountInGoldFileX();
-    this.excludeBankAccountsWithNoContactOrProduct();
+    //this.excludeAccountsWithNoContacts();
+    //this.excludeContactsWithoutAnAccountInGoldFileX();
+    //this.excludeBankAccountsWithNoContactOrProduct();
 
     this.summarizeImportOperation();
-    await this.insertViaBulkApi2('Account', this.accounts)
+    await this.handleBigData('Account', this.accounts)
     .then(() => {
       return this.updateContactAccountIds();
     }).then(() => {
-      return this.insertViaBulkApi2('Contact', this.contacts);
+      return this.handleBigData('Contact', this.contacts);
     }).then(() => {
-      return this.insertViaBulkApi2('Bank_Product__c', this.bankproducts);
+      return this.handleBigData('Bank_Product__c', this.bankproducts);
     }).then(() => {
       return this.updateBankAccountIds()
     }).then(() => {
-      return this.insertViaBulkApi2('Bank_Account__c', this.bankproducts);
+      return this.handleBigData('Bank_Account__c', this.bankaccounts);
     });
   }
 
-  protected async insertViaBulkApi2(sobject:string, dataToLoad:Array<any>): Promise<any> {
+  protected async handleBigData(sobject: string, dataToLoad: Array<any>): Promise<any> {
+    const chunkSize = 10000;
+    let numberImported: number = 0;
+    let batchNumber: number = 0;
+    for (let i=0;i<dataToLoad.length;i += chunkSize) {
+      batchNumber++;
+      const chunk = dataToLoad.slice(i, i + chunkSize);
+      await this.insertViaBulkApi2(sobject, chunk, batchNumber);
+      numberImported += chunk.length;
+    };
+    this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
+  }
 
+  protected async insertViaBulkApi2(sobject:string, dataToLoad:Array<any>, batchNumber: number): Promise<any> {
     // Create job and batch
     const conn:Connection = this.org.getConnection();
     const job = conn.bulk.createJob(sobject, "insert");
     const batch = job.createBatch();
     // start job
     const cmd:Import = this;
+
     return new Promise(function(resolve, reject) {
       batch.execute(dataToLoad);
       // listen for events
@@ -207,19 +219,25 @@ export default class Import extends SfdxCommand {
       batch.on("response", function(rets) { // fired when batch finished and result retrieved
         let successCount:number = 0;
         let errorCount:number = 0;
+        let errorOutput:string = '';
         for (var i=0; i < rets.length; i++) {
           if (rets[i].success) {
-            if (dataToLoad[i].hasOwnProperty('UpdatedId')) {
-              dataToLoad[i].UpdatedId = rets[i].id;
-            }
+            dataToLoad[i].UpdatedId = rets[i].id;
             successCount++;
           } else {
             errorCount++;
+            for (let x = 0;x < rets[i].errors.length; x++) {
+              errorOutput = errorOutput + `Error on create: ${rets[i].errors[x]}\n`;
+            }
           }
+        }
+        if (errorCount > 0) {
+          cmd.ux.log('Errors');
+          fs.writeFileSync(`${sobject}_insert_errors-${batchNumber}.txt`, errorOutput);
         }
         cmd.ux.log(`Batch insert finished
               ${successCount} ${sobject} records successfully inserted
-              ${errorCount} erros occured`);
+              ${errorCount} erros occured, check ${sobject}_insert_errors.txt`);
         resolve(1);
       });
     });
@@ -235,17 +253,15 @@ export default class Import extends SfdxCommand {
   }
 
   protected loadDataFiles(xfiles: boolean) {
-    const filepostfix: string = (xfiles ? 'x' : '');
-    this.accounts = JSON.parse(fs.readFileSync(`AccountData_GF${filepostfix}.json`, 'utf8').toString());
-    this.contacts = JSON.parse(fs.readFileSync('ContactData_GF.json', 'utf8').toString());
-    this.bankproducts = JSON.parse(fs.readFileSync('BankProductData_GF.json', 'utf8').toString());
-    this.bankaccounts = JSON.parse(fs.readFileSync('BankAccountData_GF.json', 'utf8').toString());
-  }
-
-  protected writeUpdatedDataFile(sobjectName:string, dataArray:Array<any>) {
-    let filepostfix: string = (this.flags.xfiles ? 'x' : '');
-    if (sobjectName !== 'Account') filepostfix = '';
-    fs.writeFileSync(`${sobjectName}Data_GF${filepostfix}.json`, JSON.stringify(dataArray, null, 4));
+    //const filepostfix: string = (xfiles ? 'x' : '');
+    //this.accounts = JSON.parse(fs.readFileSync(`AccountData_GF${filepostfix}.json`, 'utf8').toString());
+    //this.contacts = JSON.parse(fs.readFileSync('ContactData_GF.json', 'utf8').toString());
+    //this.bankproducts = JSON.parse(fs.readFileSync('BankProductData_GF.json', 'utf8').toString());
+    //this.bankaccounts = JSON.parse(fs.readFileSync('BankAccountData_GF.json', 'utf8').toString());
+    this.accounts = JSON.parse(fs.readFileSync(`AccountData.json`, 'utf8').toString());
+    this.contacts = JSON.parse(fs.readFileSync('ContactData.json', 'utf8').toString());
+    this.bankproducts = JSON.parse(fs.readFileSync('BankProductData.json', 'utf8').toString());
+    this.bankaccounts = JSON.parse(fs.readFileSync('BankAccountData.json', 'utf8').toString());
   }
 
   protected findRecord(dataToSearch:Array<any>, idTofind:string, fieldToLookIn:string) {
@@ -257,16 +273,20 @@ export default class Import extends SfdxCommand {
   protected async updateContactAccountIds(): Promise<any> {
     for (let i:number = 0; i < this.contacts.length; i++ ) {
       const account:Account = this.accounts.find(d => d.Id === this.contacts[i].AccountId);
-      this.contacts[i].AccountId = account.UpdatedId;
+      if (account !== undefined) {
+        this.contacts[i].AccountId = account.UpdatedId;
+      }
     }
   }
 
   protected async updateBankAccountIds(): Promise<any> {
     for (let i:number = 0; i < this.bankaccounts.length; i++ ) {
       const contact:Contact = this.contacts.find(d => d.Id === this.bankaccounts[i].Contact__c);
-      this.bankaccounts[i].Contact__c = contact.UpdatedId;
-      const bankProduct:Bank_Product = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
-      this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+      if (contact !== undefined) {
+        this.bankaccounts[i].Contact__c = contact.UpdatedId;
+        const bankProduct:Bank_Product = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
+        this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+      }
     }
     return;
   }

@@ -105,6 +105,7 @@ interface Bank_Product {
   attributes: Attributes;
   Bank_Code__c: string;
   Category__c: string;
+  Description__c: string;
   ExternalId__c: string;
   Id: string;
   Minimum_Deposit__c: number;
@@ -146,7 +147,7 @@ export default class Export extends SfdxCommand {
     const conn = this.org.getConnection();
     const accountQuery:string = 'Select Description, Fax, Id, Industry, Name, NumberOfEmployees, Phone, ShippingCity, ShippingCountry, ShippingPostalCode, ShippingState, ShippingStreet, SicDesc, Type, Website From Account';
     const contactQuery:string = 'Select Id, AccountId, Activation_Date__c, Active_Customer__c, Age__c, Customer_Category__c, Customer_Code__c, Customer_Number__c, Customer_Region__c, Customer_Relationship_Type__c, Customer_Tenure__c, Customer_Type__c, Debt_Service__c, Deceased__c, Delinquent_Status__c, Department, Description, Email, Employment_Status__c, ExternalId__c, FirstName, Foreigner__c, Gender__c, Home_Branch_Location__c, HomePhone, Household_Income__c, Industry__c, Joined_By_Channel__c, Last_Date_As_Primary_Customer__c, LastName, MailingCity, MailingCountry, MailingPostalCode, MailingState, MailingStreet, MobilePhone, New_Customer__c, Parent_Legal_Entity__c, Phone, Premier_Customer__c, Primary_Address__c, Primary_Customer__c, Province_Code__c, Race__c  From Contact';
-    const bankProductQuery:string = 'Select Bank_Code__c, Category__c, ExternalId__c, Id, Minimum_Deposit__c, Name, Online_Application__c, Product_Category__c, Promotion_Type__c  From Bank_Product__c';
+    const bankProductQuery:string = 'Select Bank_Code__c, Category__c, ExternalId__c, Description__c, Id, Minimum_Deposit__c, Name, Online_Application__c, Product_Category__c, Promotion_Type__c  From Bank_Product__c';
     const bankAccountQuery:string = 'Select Account_Age__c, Bank_Product__c, Contact__c, Id, Name From Bank_Account__c';
 
     // First, query for accounts from source org

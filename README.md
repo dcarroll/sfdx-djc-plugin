@@ -101,7 +101,6 @@ USAGE
   $ tohoom-plugin djc:import
 
 OPTIONS
-  -i, --findid=findid                              Related record id to find
   -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
   -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
   -x, --xfiles                                     Use the limited size files instead of full size files

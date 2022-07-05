@@ -13,7 +13,7 @@ import { isString, isUndefined } from 'util';
 
 import { Connection, SfdxError } from '@salesforce/core';
 import { Interface } from 'mocha';
-import { ExecuteOptions, Query } from 'jsforce';
+import { ExecuteOptions, Query, QueryResult } from 'jsforce';
 import { connect } from 'net';
 
 core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
@@ -52,22 +52,38 @@ export default class ClearData extends SfdxCommand {
   public async run(): Promise<any> {  
     const conn = this.org.getConnection();
     //await this.clearData(conn, 'Entitlement');
-    await this.clearDataViaBulk(conn, this.flags.sobject);
+    // await this.clearDataViaBulk(conn, this.flags.sobject);
+    await this.handleBigData(this.flags.sobject, await this.getDataToDelete(this.flags.sobject));
     //await this.clearData(conn, 'Contact');
   }
 
-  protected async clearData(conn: Connection, sobject: string): Promise<any> {
-      const data = await conn.autoFetchQuery(`Select Id From ${sobject}`, { maxFetch: 20000});
-      const ids = data.records.map(x => {
-          return x['Id'];
-      });
-      return conn.delete(sobject, ids);
+  protected async getDataToDelete(sobject: string): Promise<Array<any>> {
+    const conn:Connection = this.org.getConnection();
+    const results = await conn.autoFetchQuery(`Select Id From ${sobject}`, { maxFetch: 20000});
+    this.ux.log(`Discovered a total of ${results.totalSize} ${sobject} records for deletion.`);
+    return results.records;
+
   }
 
-  protected async clearDataViaBulk(conn: Connection, sobject:string): Promise<any> {
+  protected async handleBigData(sobject: string, dataToDelete: Array<any>): Promise<any> {
+    const chunkSize = 10000;
+    let numberImported: number = 0;
+    let batchNumber: number = 0;
+    for (let i=0;i<dataToDelete.length;i += chunkSize) {
+      batchNumber++;
+      const chunk = dataToDelete.slice(i, i + chunkSize);
+      await this.clearDataViaBulk(sobject, chunk, batchNumber);
+      numberImported += chunk.length;
+    };
+    //this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
+  }
+
+  protected async clearDataViaBulk(sobject:string, dataToDelete: Array<any>, batchNumber: number): Promise<any> {
+    const conn = this.org.getConnection();
     const data = await conn.autoFetchQuery(`Select Id From ${sobject}`, { maxFetch: 20000});
     const job = conn.bulk.createJob(sobject, "delete");
     const batch = job.createBatch();
+    //this.ux.log(`Found ${data.totalSize} ${sobject} records to delete`);
     const cmd:ClearData = this;
     // start job
     if (data.totalSize > 0) {
@@ -79,22 +95,30 @@ export default class ClearData extends SfdxCommand {
           reject('Error, batchInfo:'+ JSON.stringify(batchInfo, null, 4));
         });
         batch.on("queue", function(batchInfo) { // fired when batch request is queued in server.
-          cmd.ux.log(`Queueing the deletion of ${data.records.length} ${sobject} records.`)
+          cmd.ux.log(`Queueing the deletion of ${data.records.length} ${sobject} records in batches of 10,000.`)
           batch.poll(2000 /* interval(ms) */, 200000 /* timeout(ms) */); // start polling - Do not poll until the batch has started
         });
         batch.on("response", function(rets) { // fired when batch finished and result retrieved
           let successCount: number = 0;
           let errorCount: number =0;
+          let errorOutput:string = '';
           for (var i=0; i < rets.length; i++) {
             if (rets[i].success) {
               successCount++;
             } else {
               errorCount++;
+              for (let x = 0;x < rets[i].errors.length; x++) {
+                errorOutput = errorOutput + `Error on create: ${rets[i].errors[x]}\n`;
+              }
             }
           }
-          cmd.ux.log(`Batch delete finished
+          if (errorCount > 0) {
+            cmd.ux.log('Errors');
+            fs.writeFileSync(`${sobject}_delete_errors.txt`, errorOutput);
+          }
+            cmd.ux.log(`Batch delete finished
               ${successCount} ${sobject} records successfully deleted
-              ${errorCount} erros occured`);
+              ${errorCount} erros occured, check ${sobject}_delete_errors.txt`);
           resolve(1);
         });
       });
