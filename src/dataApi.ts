@@ -1,18 +1,14 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import _ = require('lodash');
-
-import { flags } from '@oclif/command';
-import { core, SfdxCommand, SfdxFlagsConfig } from '@salesforce/command';
-import { ucs2 } from 'punycode';
-import { hasUncaughtExceptionCaptureCallback } from 'process';
+import { SfdxCommand, UX } from '@salesforce/command';
 
 
 export default class DataApi {
 
     private temparray = [];
 
-    public async run(ux: core.UX, dataPlan: string, cmd: SfdxCommand): Promise<any> {
+    public async run(ux: UX, dataPlan: string, cmd: SfdxCommand): Promise<any> {
         return this.splitFiles(ux, dataPlan, cmd);
     }
 
@@ -35,7 +31,7 @@ export default class DataApi {
         this.temparray.push(recordData.fileName);
     };
 
-    private splitFiles(ux: core.UX, dataPlan: string, cmd: SfdxCommand) {
+    private splitFiles(ux: UX, dataPlan: string, cmd: SfdxCommand) {
         const filepath = path.resolve(process.cwd(), dataPlan);
         const datafolder = path.dirname(filepath);
         if (!this.validateFile(filepath)) {

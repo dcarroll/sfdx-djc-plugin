@@ -1,121 +1,16 @@
 import * as _ from 'lodash';
 
-import { core, SfdxCommand } from '@salesforce/command';
+import { SfdxCommand } from '@salesforce/command';
 
-import { flags } from '@oclif/command';
 import { join } from 'path';
 
 import * as fs from 'fs';
-import * as fsExtra from 'fs-extra';
-import * as path from 'path';
 
-import { isString, isUndefined } from 'util';
 
-import { Connection, SfdxError } from '@salesforce/core';
-import { Interface } from 'mocha';
-import { ExecuteOptions, Query } from 'jsforce';
+import { Connection, Messages, SfdxError } from '@salesforce/core';
+import { ExecuteOptions } from 'jsforce';
 
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
-interface Attributes {
-  type: string;
-  url: string;
-}
-
-interface Contact {
-  attributes: Attributes;
-  Id: string;
-  AccountId: string;
-  Activation_Date__c: string;
-  Active_Customer__c: boolean;
-  Age__c: number;
-  Customer_Category__c: string;
-  Customer_Code__c: string;
-  Customer_Number__c: number;
-  Customer_Region__c: string;
-  Customer_Relationship_Type__c: string;
-  Customer_Tenure__c: string;
-  Customer_Type__c: string;
-  Debt_Service__c: string;
-  Deceased__c: boolean;
-  Delinquent_Status__c: string;
-  Department: string;
-  Description: string;
-  Email: string;
-  Employment_Status__c: string;
-  ExternalId__c: string;
-  FirstName: string;
-  Foreigner__c: false;
-  Gender__c: string;
-  Home_Branch_Location__c: string;
-  HomePhone: string;
-  Household_Income__c: number;
-  Industry__c: string;
-  Joined_By_Channel__c: string;
-  Last_Date_As_Primary_Customer__c: string;
-  LastName: string;
-  MailingCity: string;
-  MailingCountry: string;
-  MailingPostalCode: string;
-  MailingState: string;
-  MailingStreet: string;
-  MobilePhone: string;
-  Name: string;
-  New_Customer__c: string;
-  Parent_Legal_Entity__c: string;
-  Phone: string;
-  Premier_Customer__c: boolean;
-  Primary_Address__c: boolean;
-  Primary_Customer__c: boolean;
-  Province_Code__c: string;
-  Race__c: string;
-  UpdatedId: string;
-}
-
-interface Account {
-    attributues: Attributes;
-    Description: string;
-    Fax: string;
-    Id: string;
-    Industry: string;
-    Name: string;
-    NumberOfEmployees: number;
-    Phone: string;
-    ShippingCity: string;
-    ShippingCountry: string;
-    ShippingPostalCode: string;
-    ShippingState: string;
-    ShippingStreet: string;
-    SicDesc: string;
-    Type: string;
-    Website: string;
-    UpdatedId: string;
-}
-
-interface Bank_Account {
-  attributes: Attributes;
-  Account_Age__c: number;
-  Bank_Product__c: string;
-  Contact__c: string;
-  Id: string;
-  Name: string;
-  UpdatedId: string;
-}
-
-interface Bank_Product {
-  attributes: Attributes;
-  Bank_Code__c: string;
-  Category__c: string;
-  Description__c: string;
-  ExternalId__c: string;
-  Id: string;
-  Minimum_Deposit__c: number;
-  Name: string;
-  Online_Application__c: boolean;
-  Product_Category__c: string;
-  Promotion_Type__c: string;
-  UpdateId: string;
-}
-
+Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 export default class Export extends SfdxCommand {
   public static description = `Import data to an org to use in a scratch org. `;
 
@@ -138,9 +33,6 @@ export default class Export extends SfdxCommand {
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
   protected static requiresProject = true;
 
-  private objects: Array<string>;
-  private dataMap = {};
-  private globalIds: string[] = [] as string[];
 
   // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {  

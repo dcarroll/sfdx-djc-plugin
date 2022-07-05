@@ -1,21 +1,15 @@
 import * as _ from 'lodash';
-
-import { core, SfdxCommand } from '@salesforce/command';
-
-import { flags } from '@oclif/command';
+import { flags, SfdxCommand } from '@salesforce/command';
 import { join } from 'path';
-
 import * as fs from 'fs';
 import * as fsExtra from 'fs-extra';
 import * as path from 'path';
-
-import { isString, isUndefined } from 'util';
-
-import { Connection } from '@salesforce/core';
+import { isUndefined } from 'util';
+import { Connection, Messages } from '@salesforce/core';
 import { DescribeSObjectResult, QueryResult } from 'jsforce';
 import TohoomExtension from '../../../tohoom';
 
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
+Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
 interface ChildRelationship {
   cascadeDelete: boolean;

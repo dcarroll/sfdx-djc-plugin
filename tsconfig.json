@@ -1,9 +1,10 @@
 {
   "extends": "./node_modules/@salesforce/dev-config/tsconfig",
   "compilerOptions": {
-    "target": "ES6",
+    "declaration": true,
     "outDir": "./lib",
-    "rootDir": "./src"
+    "importHelpers": true,
+    "types": ["jest"]
   },
   "include": [
     "./src/**/*"

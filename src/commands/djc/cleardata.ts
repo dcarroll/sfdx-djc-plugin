@@ -1,26 +1,10 @@
 import * as _ from 'lodash';
-
-import { core, SfdxCommand } from '@salesforce/command';
-
-import { flags } from '@oclif/command';
+import { flags, SfdxCommand } from '@salesforce/command';
 import { join } from 'path';
-
 import * as fs from 'fs';
-import * as fsExtra from 'fs-extra';
-import * as path from 'path';
+import { Connection, Messages } from '@salesforce/core';
 
-import { isString, isUndefined } from 'util';
-
-import { Connection, SfdxError } from '@salesforce/core';
-import { Interface } from 'mocha';
-import { ExecuteOptions, Query, QueryResult } from 'jsforce';
-import { connect } from 'net';
-
-core.Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
-interface Attributes {
-  type: string;
-  url: string;
-}
+Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 
 export default class ClearData extends SfdxCommand {
   public static description = `Delete data from a scratch org. `;
@@ -44,13 +28,9 @@ export default class ClearData extends SfdxCommand {
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
   protected static requiresProject = true;
 
-  private objects: Array<string>;
-  private dataMap = {};
-  private globalIds: string[] = [] as string[];
 
   // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {  
-    const conn = this.org.getConnection();
     //await this.clearData(conn, 'Entitlement');
     // await this.clearDataViaBulk(conn, this.flags.sobject);
     await this.handleBigData(this.flags.sobject, await this.getDataToDelete(this.flags.sobject));
@@ -75,7 +55,7 @@ export default class ClearData extends SfdxCommand {
       await this.clearDataViaBulk(sobject, chunk, batchNumber);
       numberImported += chunk.length;
     };
-    //this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
+    this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
   }
 
   protected async clearDataViaBulk(sobject:string, dataToDelete: Array<any>, batchNumber: number): Promise<any> {
@@ -94,7 +74,7 @@ export default class ClearData extends SfdxCommand {
           console.log('Error, batchInfo:', batchInfo);
           reject('Error, batchInfo:'+ JSON.stringify(batchInfo, null, 4));
         });
-        batch.on("queue", function(batchInfo) { // fired when batch request is queued in server.
+        batch.on("queue", function() { // fired when batch request is queued in server.
           cmd.ux.log(`Queueing the deletion of ${data.records.length} ${sobject} records in batches of 10,000.`)
           batch.poll(2000 /* interval(ms) */, 200000 /* timeout(ms) */); // start polling - Do not poll until the batch has started
         });

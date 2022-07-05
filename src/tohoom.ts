@@ -1,7 +1,4 @@
-import { core, SfdxCommand } from '@salesforce/command';
-
-import { flags } from '@oclif/command';
-
+import { SfdxCommand, UX } from '@salesforce/command';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -38,7 +35,7 @@ export default class TohoomExtension {
   private targetdir: string;
   private cmd: SfdxCommand;
 
-  public async run(planName: string, targetDir: string, ux: core.UX, cmd: SfdxCommand): Promise<any> {
+  public async run(planName: string, targetDir: string, ux: UX, cmd: SfdxCommand): Promise<any> {
 
     this.planname = planName;
     this.targetdir = targetDir;
