@@ -1,6 +1,7 @@
 {
   "extends": "./node_modules/@salesforce/dev-config/tsconfig",
   "compilerOptions": {
+    "target": "ES6",
     "outDir": "./lib",
     "rootDir": "./src"
   },

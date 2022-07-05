@@ -1,5 +1,5 @@
 {
-  "name": "sfdx-djc-plugin",
+  "name": "tohoom-plugin",
   "description": "Testing",
   "version": "0.0.31",
   "author": "Dave Carroll @dcarroll",
@@ -46,7 +46,7 @@
   "oclif": {
     "commands": "./lib/commands",
     "topics": {
-      "djc:data:export": {
+      "tohoom:data:export": {
         "description": "export data based on list of SObjects"
       }
     },

@@ -19,48 +19,122 @@ A plugin for the Salesforce CLI built by Dave Carroll and containing a few of he
 
 1. Install the SDFX CLI.
 
-2. Clone the repository: `git clone git@github.com:wadewegner/sfdx-waw-plugin.git`
+2. Clone the repository: `git clone git@github.com:wadewegner/sfdx-djc-plugin.git`
 
-3. Install npm modules: `npm install`
+3. Install npm modules: `yarn`
 
 4. Link the plugin: `sfdx plugins:link .`
 
 ### Install as plugin
 
-1. Install plugin: `sfdx plugins:install sfdx-waw-plugin`
+1. Install plugin: `sfdx plugins:install sfdx-tohoom-plugin`
 
 <!-- usage -->
 ```sh-session
-$ npm install -g sfdx-djc-plugin
-$ sfdx-djc-plugin COMMAND
+$ npm install -g tohoom-plugin
+$ tohoom-plugin COMMAND
 running command...
-$ sfdx-djc-plugin (-v|--version|version)
-sfdx-djc-plugin/0.0.31 darwin-x64 node-v9.3.0
-$ sfdx-djc-plugin --help [COMMAND]
+$ tohoom-plugin (-v|--version|version)
+tohoom-plugin/0.0.31 darwin-x64 node-v13.12.0
+$ tohoom-plugin --help [COMMAND]
 USAGE
-  $ sfdx-djc-plugin COMMAND
+  $ tohoom-plugin COMMAND
 ...
 ```
 <!-- usagestop -->
 <!-- commands -->
-* [`sfdx-djc-plugin djc:data:export`](#sfdx-djc-plugin-djcdataexport)
+* [`tohoom-plugin djc:cleardata`](#tohoom-plugin-djccleardata)
+* [`tohoom-plugin djc:export`](#tohoom-plugin-djcexport)
+* [`tohoom-plugin djc:import`](#tohoom-plugin-djcimport)
+* [`tohoom-plugin tohoom:data:export`](#tohoom-plugin-tohoomdataexport)
+* [`tohoom-plugin tohoom:data:split`](#tohoom-plugin-tohoomdatasplit)
 
-## `sfdx-djc-plugin djc:data:export`
+## `tohoom-plugin djc:cleardata`
 
-This is a proof of concept of a entirely differenct way to extract data from an org to use as developer data for a scratch org.  Just supply a list of SObject, standard or custom, and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
+Delete data from a scratch org.
 
 ```
 USAGE
-  $ sfdx-djc-plugin djc:data:export
+  $ tohoom-plugin djc:cleardata
 
 OPTIONS
+  -o, --sobject=sobject                            (required) Object to delete all records for
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:cleardata -o Account
+```
+
+_See code: [src/commands/djc/cleardata.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/cleardata.ts)_
+
+## `tohoom-plugin djc:export`
+
+Import data to an org to use in a scratch org.
+
+```
+USAGE
+  $ tohoom-plugin djc:export
+
+OPTIONS
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:import -p directory
+```
+
+_See code: [src/commands/djc/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/export.ts)_
+
+## `tohoom-plugin djc:import`
+
+Import data to an org to use in a scratch org.
+
+```
+USAGE
+  $ tohoom-plugin djc:import
+
+OPTIONS
+  -u, --targetusername=targetusername              username or alias for the target org; overrides default target org
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  -x, --xfiles                                     Use the limited size files instead of full size files
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx djc:import -p directory
+```
+
+_See code: [src/commands/djc/import.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/import.ts)_
+
+## `tohoom-plugin tohoom:data:export`
+
+Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
+
+```
+USAGE
+  $ tohoom-plugin tohoom:data:export
+
+OPTIONS
+  -b, --preserveobjectorder                       If present, uses the order of the objects from the command to
+                                                  determine plan order
+
   -e, --enforcereferences                         If present, missing child reference cause the record to be deleted,
                                                   otherwise, just the reference field is removed
 
+  -k, --tohoom                                    Special Tohoom processing to handle self referential relationship
+
   -m, --maxrecords=maxrecords                     [default: 10] Max number of records to return in any query
 
-  -n, --planname=planname                         [default: new-plan] name of the data plan to produce, deflaults to
-                                                  "new-plan"
+  -n, --planname=planname                         [default: new-data-plan] name of the data plan to produce, deflaults
+                                                  to "new-plan"
 
   -o, --objects=objects                           (required) Comma separated list of objects to fetch
 
@@ -80,9 +154,29 @@ OPTIONS
   --loglevel=(trace|debug|info|warn|error|fatal)  logging level for this command invocation
 
 EXAMPLE
-  $ sfdx djc:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
-  $ sfdx djc:data:export -o "Account, CustomObj__c, OtherCustomObj__c, Junction_Obj__c" - t data/exported
+  $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
 ```
 
-_See code: [src/commands/djc/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/djc/data/export.ts)_
+_See code: [src/commands/tohoom/data/export.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/tohoom/data/export.ts)_
+
+## `tohoom-plugin tohoom:data:split`
+
+Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command
+
+```
+USAGE
+  $ tohoom-plugin tohoom:data:split
+
+OPTIONS
+  -n, --planname=planname                          [default: data-plan] name of the data plan to use with split
+  -v, --targetdevhubusername=targetdevhubusername  username or alias for the dev hub org; overrides default dev hub org
+  --apiversion=apiversion                          override the api version used for api requests made by this command
+  --json                                           format output as json
+  --loglevel=(trace|debug|info|warn|error|fatal)   logging level for this command invocation
+
+EXAMPLE
+  $ sfdx tohoom:data:export -o Account,Contact,Case,Opportunity -t data/exported -n my-testplan
+```
+
+_See code: [src/commands/tohoom/data/split.ts](https://github.com/dcarroll/datatree/blob/v0.0.31/src/commands/tohoom/data/split.ts)_
 <!-- commandsstop -->
