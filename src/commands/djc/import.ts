@@ -164,6 +164,8 @@ export default class Import extends SfdxCommand {
       return this.updateBankAccountIds()
     }).then(() => {
       return this.handleBigData('Bank_Account__c', this.bankaccounts);
+    }).catch((reason: any) => {
+      return reason
     });
   }
 
@@ -337,7 +339,7 @@ export default class Import extends SfdxCommand {
     //const contacts:Array<Contact> = JSON.parse(fs.readFileSync('ContactData_GF.json', 'utf8').toString());
     let accountsDeleted:number = 0;
     let accountsChecked:number = 0;
-    const filteredAccounts:Array<Account> = new Array<Account>();
+    const filteredAccounts:Array<Account> = [];
     for (let i=0; i<this.accounts.length; i++) {
       accountsChecked++;
       const account = this.accounts[i];
@@ -362,7 +364,7 @@ export default class Import extends SfdxCommand {
     //this.loadAccountsFromFile();
     let contactsDeleted:number = 0;
     let contactsChecked:number = this.contacts.length;
-    const filterdContacts:Array<Contact> = new Array<Contact>();
+    const filterdContacts:Array<Contact> = [];
     for (let i:number = 0; i < this.contacts.length; i++ ) {
       const contact:Contact = this.contacts[i];
       const account:Account = this.accounts.find(acct => {
@@ -392,7 +394,7 @@ export default class Import extends SfdxCommand {
     //const bankproducts:Array<Bank_Product> = JSON.parse(fs.readFileSync('BankProductData_GF.json', 'utf8').toString());
     let bankAccountsDeleted:number = 0;
     let bankAccountsChecked:number = this.bankaccounts.length;
-    const filteredBankAccounts: Array<Bank_Account> = new Array<Bank_Account>();
+    const filteredBankAccounts: Array<Bank_Account> = [];
     for (let i=0; i<this.bankaccounts.length; i++) {
       const bankaccount = this.bankaccounts[i];
       const foundContact = this.contacts.find(d => d.Id === bankaccount.Contact__c);

@@ -124,7 +124,7 @@ export default class Export extends SfdxCommand {
     //    childRefs: ChildRelationship[];
     // }
     this.relMap = this.makeRelationshipMap();
-    this.error
+
     // Run the queries and put the data into individual json files.
     await this.runCountQueries(conn);
 
@@ -148,7 +148,7 @@ export default class Export extends SfdxCommand {
   }
 
   private reorderPlan() {
-    const newOrder: Array<PlanEntry> = new Array<PlanEntry>();
+    const newOrder: Array<PlanEntry> = [];
     //var pe: PlanEntry[];
     _.forEach(this.objects, (data, ind) => {
       const e = this.planEntries.find(element => element.sobject === data)
@@ -434,6 +434,8 @@ export default class Export extends SfdxCommand {
                       if (data.totalSize > 0) {
                         this.addToDatamap(childSObject.childSObject, data);
                       }
+                    }).catch((reason: any) => {
+                      return reason;
                     });
                   }
                 }
@@ -441,6 +443,8 @@ export default class Export extends SfdxCommand {
                 delete this.describeMap[sobjectName];
                 delete this.relMap[sobjectName];
               }
+            }).catch((reason: any) => {
+              return reason;
             });
           } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
             // Run query and add to map
@@ -450,6 +454,8 @@ export default class Export extends SfdxCommand {
                 this.dataMap[sobjectName] = rootData;
                 this.pullIds(this.dataMap[sobjectName]);
               }
+            }).catch((reason: any) => {
+              return reason;
             });
           } else {
             delete this.describeMap[sobjectName];
@@ -470,6 +476,8 @@ export default class Export extends SfdxCommand {
               delete this.describeMap[key];
               delete this.relMap[key];
             }
+          }).catch((reason: any) => {
+            return reason;
           });
         } else {
           delete this.describeMap[key];
@@ -624,6 +632,8 @@ export default class Export extends SfdxCommand {
             await this.spiderReferences(describeMap[object], describeMap, conn, object);
           }
         }
+      }).catch((reason: any) => {
+        return reason;
       });
     }
     return describeMap;
@@ -647,6 +657,8 @@ export default class Export extends SfdxCommand {
                   layoutable: describeSObjectResult.layoutable
                 };
               }
+            }).catch((reason: any) => {
+              return reason;
             });
           }
         }
