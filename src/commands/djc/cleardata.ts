@@ -1,12 +1,19 @@
 import * as _ from 'lodash';
-import { flags, SfdxCommand } from '@salesforce/command';
 import { join } from 'path';
 import * as fs from 'fs';
-import { Connection, Messages } from '@salesforce/core';
+import { Connection, Messages, SfError, AuthInfo } from '@salesforce/core';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { JsonMap } from '@salesforce/ts-types';
+import { ux } from '@oclif/core';
 
 Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 
-export default class ClearData extends SfdxCommand {
+export type ClearDataResult = {
+  message: string;
+  data: JsonMap;
+};
+
+export default class ClearData extends SfCommand<ClearDataResult> {
   public static description = `Delete data from a scratch org. `;
 
   public static examples = [
@@ -16,7 +23,7 @@ export default class ClearData extends SfdxCommand {
 
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
-    sobject: flags.string({char: 'o', required: true, description: 'Object to delete all records for'})
+    sobject: Flags.string({char: 'o', required: true, description: 'Object to delete all records for'})
   };
 
   // Comment this out if your command does not require an org username
@@ -25,22 +32,26 @@ export default class ClearData extends SfdxCommand {
   // Comment this out if your command does not support a hub org username
   protected static supportsDevhubUsername = true;
 
+  protected conn:Connection;
+
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
-  protected static requiresProject = true;
+  public static requiresProject = true;
 
 
   // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {  
+    const { flags } = await this.parse(ClearData);
     //await this.clearData(conn, 'Entitlement');
     // await this.clearDataViaBulk(conn, this.flags.sobject);
-    await this.handleBigData(this.flags.sobject, await this.getDataToDelete(this.flags.sobject));
+    const authInfo = await AuthInfo.create({ username: flags.username });
+    this.conn = await Connection.create({ authInfo });
+    await this.handleBigData(flags.sobject, await this.getDataToDelete(flags.sobject));
     //await this.clearData(conn, 'Contact');
   }
 
   protected async getDataToDelete(sobject: string): Promise<Array<any>> {
-    const conn:Connection = this.org.getConnection();
-    const results = await conn.autoFetchQuery(`Select Id From ${sobject}`, { maxFetch: 20000});
-    this.ux.log(`Discovered a total of ${results.totalSize} ${sobject} records for deletion.`);
+    const results = await this.conn.autoFetchQuery(`Select Id From ${sobject}`, { maxFetch: 20000});
+    ux.log(`Discovered a total of ${results.totalSize} ${sobject} records for deletion.`);
     return results.records;
 
   }
@@ -55,7 +66,7 @@ export default class ClearData extends SfdxCommand {
       await this.clearDataViaBulk(sobject, chunk, batchNumber);
       numberImported += chunk.length;
     };
-    this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
+    ux.log(`Total ${sobject}s imported = ${numberImported}`);
   }
 
   protected async clearDataViaBulk(sobject:string, dataToDelete: Array<any>, batchNumber: number): Promise<any> {
@@ -75,7 +86,7 @@ export default class ClearData extends SfdxCommand {
           reject('Error, batchInfo:'+ JSON.stringify(batchInfo, null, 4));
         });
         batch.on("queue", function() { // fired when batch request is queued in server.
-          cmd.ux.log(`Queueing the deletion of ${data.records.length} ${sobject} records in batches of 10,000.`)
+          ux.log(`Queueing the deletion of ${data.records.length} ${sobject} records in batches of 10,000.`)
           batch.poll(2000 /* interval(ms) */, 200000 /* timeout(ms) */); // start polling - Do not poll until the batch has started
         });
         batch.on("response", function(rets) { // fired when batch finished and result retrieved
@@ -93,10 +104,10 @@ export default class ClearData extends SfdxCommand {
             }
           }
           if (errorCount > 0) {
-            cmd.ux.log('Errors');
+            ux.log('Errors');
             fs.writeFileSync(`${sobject}_delete_errors.txt`, errorOutput);
           }
-            cmd.ux.log(`Batch delete finished
+            ux.log(`Batch delete finished
               ${successCount} ${sobject} records successfully deleted
               ${errorCount} erros occured, check ${sobject}_delete_errors.txt`);
           resolve(1);

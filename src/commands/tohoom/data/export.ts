@@ -1,13 +1,15 @@
 import * as _ from 'lodash';
-import { flags, SfdxCommand } from '@salesforce/command';
 import { join } from 'path';
 import * as fs from 'fs';
 import * as fsExtra from 'fs-extra';
 import * as path from 'path';
 import { isUndefined } from 'util';
-import { Connection, Messages } from '@salesforce/core';
 import { DescribeSObjectResult, QueryResult } from 'jsforce';
 import TohoomExtension from '../../../tohoom';
+import { Connection, Messages, AuthInfo } from '@salesforce/core';
+import { JsonMap } from '@salesforce/ts-types';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
+import { ux } from '@oclif/core';
 
 Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 // const messages = core.Messages.loadMessages('data', 'export');
@@ -64,7 +66,12 @@ interface PlanEntry {
   files: string[];
 }
 
-export default class Export extends SfdxCommand {
+export type ExportResult = {
+  message: string;
+  data: JsonMap;
+};
+
+export default class Export extends SfCommand<ExportResult> {
   public static description = `Extract data from an org to use in a scratch org. Just supply a list of SObjects and you *should* end up with a dataset and data plan that can be used with the official force:data:tree:import command`; // messages.getMessage('commandDescription');
 
   public static examples = [
@@ -75,15 +82,15 @@ export default class Export extends SfdxCommand {
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
     // name: flags.string({char: 'n', description: messages.getMessage('nameFlagDescription')})
-    objects: flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
-    planname: flags.string({ default: 'new-data-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
-    targetdir: flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
-    maxrecords: flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'}),
-    savedescribes: flags.boolean({ char: 's', description: 'Save describe results (for diagnostics)'}),
-    spiderreferences: flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
-    enforcereferences: flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'}),
-    preserveobjectorder: flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'}),
-    tohoom: flags.boolean({ char: 'k', description: 'Special Tohoom processing to handle self referential relationship'})
+    objects: Flags.string({ required: true, char: 'o', description: 'Comma separated list of objects to fetch' }),
+    planname: Flags.string({ default: 'new-data-plan', description: 'name of the data plan to produce, deflaults to "new-plan"', char: 'n'}),
+    targetdir: Flags.string({ required: true, char: 't', description: 'target directoy to place results in'}),
+    maxrecords: Flags.integer({ default: 10, char: 'm', description: 'Max number of records to return in any query'}),
+    savedescribes: Flags.boolean({ char: 's', description: 'Save describe results (for diagnostics)'}),
+    spiderreferences: Flags.boolean({ char: 'p', description: 'Include refereced SObjects determined by schema examination and existing data'}),
+    enforcereferences: Flags.boolean({ char: 'e', description: 'If present, missing child reference cause the record to be deleted, otherwise, just the reference field is removed'}),
+    preserveobjectorder: Flags.boolean({ char: 'b', description: 'If present, uses the order of the objects from the command to determine plan order'}),
+    tohoom: Flags.boolean({ char: 'k', description: 'Special Tohoom processing to handle self referential relationship'})
   };
 
   // Comment this out if your command does not require an org username
@@ -92,8 +99,9 @@ export default class Export extends SfdxCommand {
   // Comment this out if your command does not support a hub org username
   protected static supportsDevhubUsername = false;
 
+  protected conn:Connection;
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
-  protected static requiresProject = true;
+  public static requiresProject = true;
 
   private describeMap = {}; // Objectname describe result map
   private relMap: RelationshipMap; // map of object name and childRelationships and/or parents
@@ -104,19 +112,20 @@ export default class Export extends SfdxCommand {
 
   // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {  
+    const { flags } = await this.parse(Export);
     // We take in a set of object that we want to generate data for.  We will
     // examine the relationships of the included objects to one another to datermine
     // what to export and in what order.
-    this.objects = this.flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
+    this.objects = flags.objects.split(','); // [ 'Account', 'Contact', 'Lead', 'Property__c', 'Broker__c'];
     // await this.newTest();
     // return;
-    const conn = this.org.getConnection();
+    const authInfo = await AuthInfo.create({username: flags.username});
+    this.conn = await Connection.create({ authInfo });
     // Create a map of object describes keyed on object name, based on
     // describe calls.  This should be cacheing the describe, at least
     // for development purposes.
-    this.ux.startSpinner('Determining relationships for ' + this.objects.length + ' objects...');
-    this.describeMap = await this.makeDescribeMap(this.objects, conn);
-    this.ux.stopSpinner('');
+    ux.log('Determining relationships for ' + this.objects.length + ' objects...');
+    this.describeMap = await this.makeDescribeMap(this.objects, this.conn, flags);
     // Create a relationship map. A relationship map object is keyed on the
     // object name and has the following structure.
     // {
@@ -126,24 +135,24 @@ export default class Export extends SfdxCommand {
     this.relMap = this.makeRelationshipMap();
 
     // Run the queries and put the data into individual json files.
-    await this.runCountQueries(conn);
+    await this.runCountQueries(this.conn);
 
-    this.ux.startSpinner('Running queries for ' + _.keys(this.relMap).length + ' objects...');
+    ux.log('Running queries for ' + _.keys(this.relMap).length + ' objects...');
     this.planEntries = await this.createDataPlan();
-    await this.runQueries(this.org.getConnection());
-    this.ux.stopSpinner('Saving data...');
+    await this.runQueries(this.conn, flags);
+    ux.log('Saving data...');
 
-    await this.saveData();
+    await this.saveData(flags);
 
-    if (process.env.NODE_OPTIONS === '--inspect-brk' || this.flags.savedescribes ) {
+    if (process.env.NODE_OPTIONS === '--inspect-brk' || flags.savedescribes ) {
       this.saveDescribeMap();
     }
     // return this.planEntries;
-    if (this.flags.tohoom) {
+    if (flags.tohoom) {
       let ext = new TohoomExtension();
-      ext.run(this.flags.planname, this.flags.targetdir, this.ux, this);
+      ext.run(flags.planname, flags.targetdir, this);
     }
-    this.ux.log('Finished exporting data and plan.');
+    ux.log('Finished exporting data and plan.');
 
   }
 
@@ -152,7 +161,9 @@ export default class Export extends SfdxCommand {
     //var pe: PlanEntry[];
     _.forEach(this.objects, (data, ind) => {
       const e = this.planEntries.find(element => element.sobject === data)
-      newOrder.push(e)
+      if (e) {
+        newOrder.push(e)
+      }
     });
     this.planEntries = newOrder;
   }
@@ -162,7 +173,7 @@ export default class Export extends SfdxCommand {
   // is set to just the id, rather than a url. After the data sets have been
   // adjusted, the data is written to the file system at the location passed
   // on the --targetdir flag.
-  private async saveData() {
+  private async saveData(flags) {
     // tslint:disable-next-line:forin
     for (let objName in this.dataMap) {
       objName = objName.split('.')[0];
@@ -178,22 +189,22 @@ export default class Export extends SfdxCommand {
       this.createRefs(this.dataMap[objName]);
     }
 
-    this.pruneBadReferences();
-    if (!fs.existsSync(this.flags.targetdir)) {
-      fsExtra.ensureDirSync(this.flags.targetdir);
+    this.pruneBadReferences(flags);
+    if (!fs.existsSync(flags.targetdir)) {
+      fsExtra.ensureDirSync(flags.targetdir);
     }
     // tslint:disable-next-line:forin
     for (let objName in this.dataMap) {
       objName = objName.split('.')[0];
-      fs.writeFileSync(path.join(this.flags.targetdir, objName + '.json'), JSON.stringify(this.dataMap[objName], null, 4));
+      fs.writeFileSync(path.join(flags.targetdir, objName + '.json'), JSON.stringify(this.dataMap[objName], null, 4));
     }
-    if (this.flags.preserveobjectorder) {
+    if (flags.preserveobjectorder) {
       this.reorderPlan();
     }
-    fs.writeFileSync(path.join(this.flags.targetdir, this.flags.planname + '.json'), JSON.stringify(this.planEntries, null, 4));
+    fs.writeFileSync(path.join(flags.targetdir, flags.planname + '.json'), JSON.stringify(this.planEntries, null, 4));
   }
 
-  private pruneBadReferences() {
+  private pruneBadReferences(flags) {
     _.forOwn(this.dataMap, (dataMapItem, key) => {
       // tslint:disable-next-line:no-any
       const records: Array<{}> = (dataMapItem as any).records;
@@ -202,7 +213,7 @@ export default class Export extends SfdxCommand {
           if (fieldName !== 'attributes' && typeof field === 'string') {
             if (field.startsWith('@ref')) {
                 if (!this.globalIds.includes(field.split('@ref')[1])) {
-                  if (this.flags.enforcereferences) {
+                  if (flags.enforcereferences) {
                     this.dataMap[key].records.splice(index, 1);
                   } else {
                     delete record[fieldName];
@@ -286,8 +297,8 @@ export default class Export extends SfdxCommand {
   }
 
   private isObjectReferenced(objectName, listMap) {
-    const result = { result: false,
-                   refrerencingObject: [] };
+    // deepcode ignore ArrayConstructor: <please specify a reason of ignoring this>
+    const result = { result: false, refrerencingObject: new Array() };
     for (const topLevelObject in listMap) {
       if (topLevelObject === objectName) {
         // Skip, this is the thing itself
@@ -406,7 +417,7 @@ export default class Export extends SfdxCommand {
     return false;
   }
 
-  private async runQueries(connection: Connection) {
+  private async runQueries(connection: Connection, flags) {
     for (const sobjectName in this.relMap) {
       if (this.relMap.hasOwnProperty(sobjectName)) {
         if (_.findIndex(this.planEntries, [ 'sobject', sobjectName]) === -1) {
@@ -418,7 +429,7 @@ export default class Export extends SfdxCommand {
 
           if (this._validRootObj(rootObj)) {
             // Run query and store in qrMap
-            await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+            await connection.query(this.generateSimpleQuery(sobjectName, flags)).then(rootData => {
               rootData = this.removeNulls(rootData);
               if (rootData.totalSize > 0) {
                 this.dataMap[sobjectName] = rootData;
@@ -429,7 +440,7 @@ export default class Export extends SfdxCommand {
                   // Run query using ids from rootObj in where clause for dependent
                   const childSObject = rootObj.childRefs[dependent];
                   if (rootObj.name !== childSObject.childSObject && this.shouldQueryThisField(childSObject)) {
-                    connection.query(this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field)).then(data => {
+                    connection.query(this.generateDependentQuery(childSObject.childSObject, ids, childSObject.field, flags)).then(data => {
                       this.removeNulls(data);
                       if (data.totalSize > 0) {
                         this.addToDatamap(childSObject.childSObject, data);
@@ -448,7 +459,7 @@ export default class Export extends SfdxCommand {
             });
           } else if (isUndefined(rootObj.childRefs) && !isUndefined(rootObj.parentRefs)) {
             // Run query and add to map
-            await connection.query(this.generateSimpleQuery(sobjectName)).then(rootData => {
+            await connection.query(this.generateSimpleQuery(sobjectName, flags)).then(rootData => {
               rootData = this.removeNulls(rootData);
               if (rootData.totalSize > 0) {
                 this.dataMap[sobjectName] = rootData;
@@ -522,16 +533,16 @@ export default class Export extends SfdxCommand {
     return 'Select Count() From ' + objName;
   }
 
-  private generateSimpleQuery(objName) {
-    return this.generateQuery(objName) + ' Limit ' + this.flags.maxrecords;
+  private generateSimpleQuery(objName, flags) {
+    return this.generateQuery(objName) + ' Limit ' + flags.maxrecords;
   }
 
-  private generateDependentQuery(objName: string, ids: string[], filterField: string) {
-    return this.generateQuery(objName) + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit ' + this.flags.maxrecords;
+  private generateDependentQuery(objName: string, ids: string[], filterField: string, flags) {
+    return this.generateQuery(objName) + ' Where ' + filterField + ' in (\'' + ids.join('\',\'') + '\') Limit ' + flags.maxrecords;
   }
 
   private generateQuery(objName) {
-    const selectClause = [];
+    const selectClause = new Array();
     // tslint:disable-next-line:forin
     for (const fieldIndex in this.describeMap[objName].fields) {
       const field = this.describeMap[objName].fields[fieldIndex];
@@ -616,7 +627,7 @@ export default class Export extends SfdxCommand {
     }
   }
 
-  private async makeDescribeMap(objects, conn) {
+  private async makeDescribeMap(objects, conn, flags) {
     const describeMap = {}; // Objectname describe result map
     for (const object of this.objects) {
 
@@ -628,7 +639,7 @@ export default class Export extends SfdxCommand {
             layoutable: describeResult.layoutable
           };
 
-          if (this.flags.spiderreferences) {
+          if (flags.spiderreferences) {
             await this.spiderReferences(describeMap[object], describeMap, conn, object);
           }
         }
@@ -642,7 +653,8 @@ export default class Export extends SfdxCommand {
   private async spiderReferences(describeResult: DescribeSObjectResult, describeMap, conn, object) {
     // tslint:disable-next-line:prefer-for-of
     for (let i = 0; i < describeResult.fields.length; i++) {
-      const field: Field = describeResult.fields[i];
+      const field: Field = describeResult.fields[i] as unknown as Field;
+      if (field.referenceTo) {
       if (field.type === 'reference' && !field.referenceTo.includes('User')) {
         // tslint:disable-next-line:prefer-for-of
         for (let index = 0; index < field.referenceTo.length; index++) {
@@ -663,6 +675,7 @@ export default class Export extends SfdxCommand {
           }
         }
       }
+    }
     }
   }
 

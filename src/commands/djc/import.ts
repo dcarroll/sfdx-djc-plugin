@@ -1,8 +1,10 @@
 import * as _ from 'lodash';
-import { flags, SfdxCommand } from '@salesforce/command';
+import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { join } from 'path';
 import * as fs from 'fs';
-import { Connection, Messages } from '@salesforce/core';
+import { Connection, Messages, AuthInfo } from '@salesforce/core';
+import { ux } from '@oclif/core';
+import { JsonMap } from '@salesforce/ts-types';
 
 Messages.importMessagesDirectory(join(__dirname, '..', '..', '..'));
 interface Attributes {
@@ -106,7 +108,12 @@ interface Bank_Product {
   UpdatedId: string;
 }
 
-export default class Import extends SfdxCommand {
+export type ImportResult = {
+  message: string;
+  data: JsonMap;
+};
+
+export default class Import extends SfCommand<ImportResult> {
   public static description = `Import data to an org to use in a scratch org. `;
 
   public static examples = [
@@ -116,7 +123,7 @@ export default class Import extends SfdxCommand {
 
   protected static flagsConfig = {
     // flag with a value (-n, --name=VALUE)
-    xfiles: flags.boolean({ char: 'x', description: 'Use the limited size files instead of full size files'})
+    xfiles: Flags.boolean({ char: 'x', description: 'Use the limited size files instead of full size files'})
   };
 
   // Comment this out if your command does not require an org username
@@ -125,8 +132,10 @@ export default class Import extends SfdxCommand {
   // Comment this out if your command does not support a hub org username
   protected static supportsDevhubUsername = true;
 
+  protected connection: Connection;
+
   // Set this to true if your command requires a project workspace; 'requiresProject' is false by default
-  protected static requiresProject = true;
+  public static requiresProject = true;
 
   private accounts: Array<Account>;
   private contacts: Array<Contact>;
@@ -146,8 +155,10 @@ export default class Import extends SfdxCommand {
   // Import the Bank Accounts
   // tslint:disable-next-line:no-any 
   public async run(): Promise<any> {
-    this.loadDataFiles(this.flags.xfiles);
-
+    const { flags } = await this.parse(Import);
+    this.loadDataFiles(flags.xfiles);
+    const authInfo = await AuthInfo.create({username: flags.username });
+    this.connection = await Connection.create({ authInfo });
     //this.excludeAccountsWithNoContacts();
     //this.excludeContactsWithoutAnAccountInGoldFileX();
     //this.excludeBankAccountsWithNoContactOrProduct();
@@ -179,13 +190,12 @@ export default class Import extends SfdxCommand {
       await this.insertViaBulkApi2(sobject, chunk, batchNumber);
       numberImported += chunk.length;
     };
-    this.ux.log(`Total ${sobject}s imported = ${numberImported}`);
+    ux.log(`Total ${sobject}s imported = ${numberImported}`);
   }
 
   protected async insertViaBulkApi2(sobject:string, dataToLoad:Array<any>, batchNumber: number): Promise<any> {
     // Create job and batch
-    const conn:Connection = this.org.getConnection();
-    const job = conn.bulk.createJob(sobject, "insert");
+    const job = this.connection.bulk.createJob(sobject, "insert");
     const batch = job.createBatch();
     // start job
     const cmd:Import = this;
@@ -194,11 +204,11 @@ export default class Import extends SfdxCommand {
       batch.execute(dataToLoad);
       // listen for events
       batch.on("error", function(batchInfo) { // fired when batch request is queued in server.
-        cmd.ux.error('Error, batchInfo:', batchInfo);
+        ux.error('Error, batchInfo:', batchInfo);
         reject('Error, batchInfo:'+ JSON.stringify(batchInfo, null, 4));
       });
       batch.on("queue", function(batchInfo) { // fired when batch request is queued in server.
-        cmd.ux.log(`Queued batch for ${dataToLoad.length} ${sobject} records.`);
+        ux.log(`Queued batch for ${dataToLoad.length} ${sobject} records.`);
         // poll(interval(ms), timeout(ms))
         batch.poll(2000, 200000); // start polling - Do not poll until the batch has started
       });
@@ -218,10 +228,10 @@ export default class Import extends SfdxCommand {
           }
         }
         if (errorCount > 0) {
-          cmd.ux.log('Errors');
+          ux.log('Errors');
           fs.writeFileSync(`${sobject}_insert_errors-${batchNumber}.txt`, errorOutput);
         }
-        cmd.ux.log(`Batch insert finished
+        ux.log(`Batch insert finished
               ${successCount} ${sobject} records successfully inserted
               ${errorCount} erros occured, check ${sobject}_insert_errors.txt`);
         resolve(1);
@@ -230,7 +240,7 @@ export default class Import extends SfdxCommand {
   }
 
   protected summarizeImportOperation() {
-    this.ux.log(`
+    ux.log(`
     Will import the following data:
       ${this.accounts.length} Accounts
       ${this.contacts.length} Contacts
@@ -258,7 +268,7 @@ export default class Import extends SfdxCommand {
 
   protected async updateContactAccountIds(): Promise<any> {
     for (let i:number = 0; i < this.contacts.length; i++ ) {
-      const account:Account = this.accounts.find(d => d.Id === this.contacts[i].AccountId);
+      const account = this.accounts.find(d => d.Id === this.contacts[i].AccountId);
       if (account !== undefined) {
         this.contacts[i].AccountId = account.UpdatedId;
       }
@@ -267,11 +277,13 @@ export default class Import extends SfdxCommand {
 
   protected async updateBankAccountIds(): Promise<any> {
     for (let i:number = 0; i < this.bankaccounts.length; i++ ) {
-      const contact:Contact = this.contacts.find(d => d.Id === this.bankaccounts[i].Contact__c);
+      const contact = this.contacts.find(d => d.Id === this.bankaccounts[i].Contact__c);
       if (contact !== undefined) {
         this.bankaccounts[i].Contact__c = contact.UpdatedId;
-        const bankProduct:Bank_Product = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
-        this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+        const bankProduct = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
+        if (bankProduct) {
+          this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+        }
       }
     }
     return;
@@ -319,14 +331,18 @@ export default class Import extends SfdxCommand {
   protected async importAndUpdateBankAccounts(conn: Connection, cmd: Import) {
     //this.bankaccounts = JSON.parse(fs.readFileSync('BankAccountData_GFx.json', 'utf8').toString());
     for (let i:number = 0; i < this.bankaccounts.length; i++ ) {
-      const contact:Contact = this.contacts.find(d => d.Id === this.bankaccounts[i].Contact__c);
-      this.bankaccounts[i].Contact__c = contact.UpdatedId;
-      const bankProduct:Bank_Product = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
-      this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+      const contact = this.contacts.find(d => d.Id === this.bankaccounts[i].Contact__c);
+      if (contact) {
+        this.bankaccounts[i].Contact__c = contact.UpdatedId;
+      }
+      const bankProduct = this.bankproducts.find(d => d.Id === this.bankaccounts[i].Bank_Product__c);
+      if (bankProduct) {
+        this.bankaccounts[i].Bank_Product__c = bankProduct.UpdatedId;
+      }
     }
 
     const results:any = await conn.insert('Bank_Account__c', this.bankaccounts)
-    cmd.ux.log('Got results?');
+    ux.log('Got results?');
     for (let i = 0; i < results.length; i++) {
       this.bankaccounts[i].UpdatedId = results[i].id;
     }
@@ -343,7 +359,7 @@ export default class Import extends SfdxCommand {
     for (let i=0; i<this.accounts.length; i++) {
       accountsChecked++;
       const account = this.accounts[i];
-      const foundContact:Contact = this.contacts.find(contact => {
+      const foundContact = this.contacts.find(contact => {
         return contact.AccountId === account.Id;
       })
       if (account != null && foundContact === undefined) {
@@ -353,8 +369,8 @@ export default class Import extends SfdxCommand {
         filteredAccounts.push(this.accounts[i]);
       }
     }
-    this.ux.log(`Removed ${accountsDeleted} accounts since they have not contacts.`);
-    this.ux.log(`Checked ${accountsChecked} accounts.`)
+    ux.log(`Removed ${accountsDeleted} accounts since they have not contacts.`);
+    ux.log(`Checked ${accountsChecked} accounts.`)
     this.accounts = filteredAccounts;
     //this.writeUpdatedDataFile('Account', this.accounts);
   }
@@ -367,7 +383,7 @@ export default class Import extends SfdxCommand {
     const filterdContacts:Array<Contact> = [];
     for (let i:number = 0; i < this.contacts.length; i++ ) {
       const contact:Contact = this.contacts[i];
-      const account:Account = this.accounts.find(acct => {
+      const account = this.accounts.find(acct => {
         if (acct === null) {
           return undefined;
         } else {
@@ -382,8 +398,8 @@ export default class Import extends SfdxCommand {
         filterdContacts.push(this.contacts[i]);
       }
     }
-    this.ux.log(`Removed ${contactsDeleted} contacts since they have no accounts in the extracted data.`);
-    this.ux.log(`Checked ${contactsChecked} contacts.`)
+    ux.log(`Removed ${contactsDeleted} contacts since they have no accounts in the extracted data.`);
+    ux.log(`Checked ${contactsChecked} contacts.`)
     this.contacts = filterdContacts;
     //this.writeUpdatedDataFile('Contact', this.contacts);
   }
@@ -408,8 +424,8 @@ export default class Import extends SfdxCommand {
     }
     if (bankAccountsDeleted > 0) {
       this.bankaccounts = filteredBankAccounts;
-      this.ux.log(`Removed ${bankAccountsDeleted} bank accounts since they have no contacts.`);
-      this.ux.log(`Checked ${bankAccountsChecked} bank accounts.`)
+      ux.log(`Removed ${bankAccountsDeleted} bank accounts since they have no contacts.`);
+      ux.log(`Checked ${bankAccountsChecked} bank accounts.`)
       //this.writeUpdatedDataFile('BankAccount', this.bankaccounts);
     }
   }

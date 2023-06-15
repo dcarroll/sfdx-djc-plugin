@@ -1,12 +1,12 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import _ = require('lodash');
+import _ from 'lodash';
 import { SfdxCommand, UX } from '@salesforce/command';
 
 
 export default class DataApi {
 
-    private temparray = [];
+    protected temparray: string[];
 
     public async run(ux: UX, dataPlan: string, cmd: SfdxCommand)  {
         this.splitFiles(ux, dataPlan, cmd);
