@@ -8,8 +8,8 @@ export default class DataApi {
 
     private temparray = [];
 
-    public async run(ux: UX, dataPlan: string, cmd: SfdxCommand): Promise<any> {
-        return this.splitFiles(ux, dataPlan, cmd);
+    public async run(ux: UX, dataPlan: string, cmd: SfdxCommand)  {
+        this.splitFiles(ux, dataPlan, cmd);
     }
 
     private async validateFile(path: string) {
