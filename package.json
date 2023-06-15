@@ -5,12 +5,13 @@
     "author": "Dave Carroll @dcarroll",
     "bugs": "https://github.com/dcarroll/datatree/issues",
     "dependencies": {
-        "@types/fs-extra": "^5.0.4",
         "@oclif/command": "^1.8.0",
         "@oclif/config": "^1.17.0",
         "@oclif/errors": "^1.3.5",
         "@salesforce/command": "^5.3.9",
         "@salesforce/core": "^4.3.1",
+        "@salesforce/sf-plugins-core": "^3.1.0",
+        "@types/fs-extra": "^5.0.4",
         "tslib": "^2.3.0"
     },
     "devDependencies": {
@@ -62,6 +63,5 @@
         "prepack": "del-cli -f lib && tsc -b && oclif-dev manifest && oclif-dev readme",
         "test": "jest",
         "version": "oclif-dev readme && git add README.md"
-
     }
 }

@@ -1,0 +1,1 @@
+{"version":"0.0.32","name":"sfdx-djc-plugin","dependencies":{"@oclif/command":{"version":"1.8.16"},"@oclif/config":{"version":"1.18.3"},"@oclif/errors":{"version":"1.3.5"},"@salesforce/command":{"version":"5.3.9"},"@salesforce/core":{"version":"4.3.1"},"@types/fs-extra":{"version":"5.1.0"},"tslib":{"version":"2.4.0"}}}

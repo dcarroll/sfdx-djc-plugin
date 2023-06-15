@@ -1,6 +1,7 @@
-import { SfdxCommand, UX } from '@salesforce/command';
+import { SfCommand } from '@salesforce/sf-plugins-core'
 import * as fs from 'fs';
 import * as path from 'path';
+import { ux } from '@oclif/core';
 
 interface PlanEntry {
   sobject: string;
@@ -33,18 +34,17 @@ export default class TohoomExtension {
 
   private planname: string; 
   private targetdir: string;
-  private cmd: SfdxCommand;
+  private cmd: SfCommand<any>;
 
-  public async run(planName: string, targetDir: string, ux: UX, cmd: SfdxCommand): Promise<any> {
+  public async run(planName: string, targetDir: string, cmd: SfCommand<any>): Promise<any> {
 
     this.planname = planName;
     this.targetdir = targetDir;
     this.cmd = cmd;
 
-    ux.startSpinner(`Re-jiggering the ${this.planname} data plan found in the ${this.targetdir} direcotry...`);
+    ux.log(`Re-jiggering the ${this.planname} data plan found in the ${this.targetdir} direcotry...`);
     await this.addSeedFileToPlan();
     await this.copyHoomTMtoSeedFile();
-    ux.stopSpinner('');
     ux.log('Finished modifying plan for Tohoom data.');
   }
 
